@@ -1,0 +1,19 @@
+﻿function calcSpan(aStr, bStr, both){
+    const a = parseTime(aStr), b = parseTime(bStr);
+    if(a==='OFF' || b==='OFF') return null;
+    if(a===null || b===null) return null;
+
+    // Унифицированно считаем длительность:
+    // - если пересекаем полночь (a>b), добавляем сутки
+    // - если времена равны (a===b), трактуем как 24:00 (суточная)
+    let minutes = b - a;
+    if (minutes < 0) minutes += 24*60;
+    if (minutes === 0) minutes = 24*60;
+    return minutes;          
+}
+    if(a===b) return 24*60;  // СЂР°РІРЅС‹Рµ -> 24:00
+    if(a>b) return (24*60 - a) + b; // РЅРѕС‡СЊ
+    return b - a;            // РѕР±С‹С‡РЅС‹Р№ РґРµРЅСЊ
+  }
+
+  

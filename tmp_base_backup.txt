@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}COLIZEUM{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {% block styles %}{% endblock %}
+
+  <!-- Favicons -->
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico', v=2) }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png', v=2) }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16.png', v=2) }}">
+</head>
+<body class="cz-body">
+
+<nav class="cz-navbar">
+  <div class="container-fluid px-3 d-flex align-items-center gap-3 flex-wrap">
+    <a class="navbar-brand cz-brand d-flex align-items-center gap-2" href="{{ url_for('home') }}">
+      <img src="{{ url_for('static', filename='logo.jpg') }}" alt="logo" class="cz-logo" style="height:34px">
+      <span>COLIZEUM</span>
+    </a>
+
+    {% if current_user.is_authenticated %}
+      <div class="cz-nav d-flex gap-2 flex-wrap">
+        <a class="cz-navbtn" href="{{ url_for('cashier.index') }}">Отчёт кассира</a>
+        <a class="cz-navbtn" href="{{ url_for('schedule.index') }}">График работы</a>
+        <a class="cz-navbtn" href="{{ url_for('payroll.index') }}">Зарплата</a>
+        <a class="cz-navbtn" href="{{ url_for('admin_debts.index') }}">Долги</a>
+        <a class="cz-navbtn" href="{{ url_for('inventory.index') }}">Инвентаризация</a>
+        {% if current_user.role in ['superadmin','owner'] %}
+          <a class="cz-navbtn" href="{{ url_for('admin.index') }}">Админка</a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="ms-auto d-flex align-items-center gap-3">
+      {% if current_user.is_authenticated %}
+        {# выбор клуба #}
+        {% set clubs_count = (toolbar_clubs|length) if toolbar_clubs is defined else 0 %}
+        {% set active = (toolbar_clubs|selectattr('id','equalto',active_club_id)|list|first) if toolbar_clubs is defined else none %}
+
+        {% if current_user.role == 'superadmin' or clubs_count|int > 1 %}
+          <form method="post" action="{{ url_for('set_club') }}" class="d-flex align-items-center gap-2">
+            <label class="navbar-text d-none d-sm-inline text-warning small mb-0">Клуб:</label>
+            <select name="club_id" class="form-select form-select-sm" onchange="this.form.submit()">
+              {% for c in toolbar_clubs %}
+                <option value="{{ c.id }}" {{ 'selected' if c.id == active_club_id else '' }}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        {% else %}
+          <span class="navbar-text d-none d-sm-inline text-warning">
+            Текущий клуб: {{ active.name if active else '—' }}
+          </span>
+        {% endif %}
+
+        <span class="navbar-text d-none d-sm-inline">
+          {{ current_user.full_name or current_user.username }} · {{ current_user.role }}
+        </span>
+        <a class="btn btn-sm cz-btn" href="{{ url_for('auth.logout') }}">Выйти</a>
+      {% else %}
+        <a class="btn btn-sm cz-btn" href="{{ url_for('auth.login') }}">Войти</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="container mt-3">
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ 'danger' if cat=='danger' else 'primary' }}">{{ msg }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+{% block content %}{% endblock %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
+
