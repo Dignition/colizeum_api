@@ -1,0 +1,311 @@
+﻿{% extends "base.html" %}
+{% block title %}Операции по долгам · COLIZEUM{% endblock %}
+{% block content %}
+<div class="container-fluid debts-ops py-3">
+  {% if local_msg %}
+    <div class="alert alert-{{ local_kind or 'primary' }}">{{ local_msg }}</div>
+  {% endif %}
+  <h1 class="cz-h1">Операции по долгам</h1>
+
+  <div class="d-flex gap-2 mt-2">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('debtops.products') }}">Список товаров</a>
+  </div>
+
+  <div class="row g-3 mt-2">
+    <div class="col-lg-7">
+      <div class="cz-fieldset">
+        <div class="cz-legend">Записать товар</div>
+        <form id="assign-form" method="post" action="{{ url_for('debtops.ops_assign') }}" class="row g-2 align-items-end">
+          {% if can_choose_user %}
+          <div class="col-12">
+            <label class="form-label">Сотрудник</label>
+            <select name="user_id" class="form-select cz-input" required>
+              <option value="">- выберите -</option>
+              {% for u in members %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}
+            </select>
+          </div>
+          {% else %}
+          <div class="col-12">
+            <label class="form-label">Сотрудник</label>
+            <input class="form-control cz-input" value="{{ current_user.full_name or current_user.username }}" disabled>
+          </div>
+          {% endif %}
+
+          <div class="col-9">
+            <label class="form-label">Штрихкод/Наименование</label>
+            <div class="cz-suggest-wrap">
+              <input id="assign_barcode" name="barcode" class="form-control cz-input" placeholder="сканируйте/введите" autocomplete="off" autofocus>
+              <div class="cz-suggest" id="assign_suggest"></div>
+            </div>
+            <input type="hidden" name="product_id" id="assign_product_id">
+            <div class="small cz-muted-text mt-1" id="assign_preview"></div>
+          </div>
+          <div class="col-3">
+            <label class="form-label">Кол-во</label>
+            <input name="qty" type="number" min="1" step="1" value="1" class="form-control cz-input" required>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button type="submit" id="assign-submit" class="btn cz-btn px-3 text-nowrap w-auto">Записать</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="cz-fieldset">
+        <div class="cz-legend">Брак (не влияет на долг)</div>
+        <form id="defect-form" method="post" action="{{ url_for('debtops.ops_defect') }}" class="row g-2">
+          {% if can_choose_user %}
+          <div class="col-12 col-md-6">
+            <label class="form-label">Сотрудник</label>
+            <select name="user_id" class="form-select cz-input">
+              <option value="">- выберите -</option>
+              {% for u in members %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          <div class="col-12 col-md-6">
+            <label class="form-label">Штрихкод/Наименование</label>
+            <div class="cz-suggest-wrap">
+              <input id="defect_barcode" name="barcode" class="form-control cz-input" placeholder="сканируйте/введите" autocomplete="off">
+              <div class="cz-suggest" id="defect_suggest"></div>
+            </div>
+            <input type="hidden" name="product_id" id="defect_product_id">
+            <div class="small cz-muted-text mt-1" id="defect_preview"></div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">Кол-во</label>
+            <input name="qty" type="number" min="1" step="1" value="1" class="form-control cz-input" required>
+          </div>
+          <div class="col-12 col-md-9">
+            <label class="form-label">Причина брака</label>
+            <input name="reason" class="form-control cz-input" placeholder="например: повреждена упаковка" required>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn cz-btn px-3 text-nowrap">Записать брак</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex align-items-center gap-2 mt-3">
+    {% if can_delete %}
+    <form method="post" action="{{ url_for('debtops.ops_reset') }}" onsubmit="return confirm('Очистить операции долгов по клубу?');">
+      <button class="btn btn-outline-danger">Очистить операции (по клубу)</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% set can_manage_all = can_choose_user %}
+  <div class="row g-3 mt-3">
+    {% if can_manage_all %}
+    <div class="col-lg-4">
+      <div class="cz-fieldset">
+        <div class="cz-legend">Итоги по сотрудникам</div>
+        <div class="cz-table-wrap">
+          <table class="cz-table-grid">
+            <thead>
+              <tr>
+                <th>Сотрудник</th>
+                <th class="cz-td-right">Сумма</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in sums %}
+              <tr>
+                <td>{{ r.name }}</td>
+                <td class="cz-td-right"><span class="cz-money">{{ r.total|fmt }}</span></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="2" class="text-muted">Пусто.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if not can_manage_all %}
+    <div class="col-lg-12">
+      <div class="cz-kpi">
+        <div class="kpi">
+          <div class="label">Ваш долг</div>
+          {% set my_row = (sums|selectattr('user_id','equalto', current_user.id)|list|first) %}
+          <div class="value"><span class="cz-money">{{ (my_row.total if my_row else 0)|fmt }}</span></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="col-lg-{% if can_manage_all %}8{% else %}12{% endif %}">
+      <div class="cz-fieldset">
+        <div class="cz-legend">Последние операции</div>
+        <div class="cz-table-wrap">
+          <table class="cz-table-grid">
+            <thead>
+              <tr>
+                <th class="cz-nowrap">Дата/время</th>
+                {% if can_manage_all %}<th class="cz-nowrap">Сотрудник</th>{% endif %}
+                <th>Товар</th>
+                <th class="cz-td-right cz-nowrap">Кол-во</th>
+                <th class="cz-td-right cz-nowrap">Цена</th>
+                {% if can_delete %}<th class="cz-td-right cz-nowrap">Действия</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for r,u,p in items %}
+              <tr>
+                <td class="cz-nowrap">{{ r.created_at|dt_ru }}</td>
+                {% if can_manage_all %}<td class="cz-nowrap">{{ u.full_name or u.username }}</td>{% endif %}
+                <td>{{ p.name }}</td>
+                <td class="cz-td-right cz-nowrap">{{ r.qty }}</td>
+                <td class="cz-td-right cz-nowrap"><span class="cz-money">{{ r.price|fmt }}</span></td>
+                {% if can_delete %}
+                <td class="cz-td-right cz-nowrap">
+                  <form method="post" action="{{ url_for('debtops.ops_delete', op_id=r.id) }}" onsubmit="return confirm('Удалить операцию?');">
+                    <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                  </form>
+                </td>
+                {% endif %}
+              </tr>
+              {% else %}
+              {% set colspan = 4 + (1 if can_manage_all else 0) + (1 if can_delete else 0) %}
+              <tr><td colspan="{{ colspan }}" class="text-muted">Операций нет.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-3">
+    <div class="col-12">
+      <div class="cz-fieldset">
+        <div class="cz-legend">Записи брака</div>
+        <div class="cz-table-wrap">
+          <table class="cz-table-grid">
+            <thead>
+              <tr>
+                <th class="cz-nowrap">Дата/время</th>
+                {% if can_manage_all %}<th class="cz-nowrap">Сотрудник</th>{% endif %}
+                <th>Товар</th>
+                <th class="cz-td-right cz-nowrap">Кол-во</th>
+                <th>Причина</th>
+                {% if can_delete %}<th class="cz-td-right cz-nowrap">Действия</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for r,u,p in defects %}
+              <tr>
+                <td class="cz-nowrap">{{ r.created_at|dt_ru }}</td>
+                {% if can_manage_all %}<td class="cz-nowrap">{{ u.full_name or u.username }}</td>{% endif %}
+                <td>{{ p.name }}</td>
+                <td class="cz-td-right cz-nowrap">{{ r.qty }}</td>
+                <td class="cz-nowrap">{{ r.reason }}</td>
+                {% if can_delete %}
+                <td class="cz-td-right cz-nowrap">
+                  <form method="post" action="{{ url_for('debtops.ops_delete', op_id=r.id) }}" onsubmit="return confirm('Удалить запись брака?');">
+                    <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                  </form>
+                </td>
+                {% endif %}
+              </tr>
+              {% else %}
+              <tr><td colspan="{{ (4 + (1 if can_manage_all else 0) + (1 if can_delete else 0)) }}" class="text-muted">Брака нет.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const form = document.getElementById('assign-form');
+  if(form){
+    form.addEventListener('submit', function(e){
+      if(form.dataset.confirmed==='1') return; e.preventDefault();
+      let m = document.getElementById('confirm-modal');
+      if(!m){
+        m = document.createElement('div'); m.id='confirm-modal'; m.className='modal fade cz-modal'; m.tabIndex=-1;
+        m.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Записать товар?</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">Подтвердите запись товара.</div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+              <button type="button" id="confirm-yes" class="btn cz-btn">Записать</button>
+            </div>
+          </div>
+        </div>`; document.body.appendChild(m);
+      }
+      const bsModal = new bootstrap.Modal(m); bsModal.show();
+      m.querySelector('#confirm-yes').onclick = function(){ bsModal.hide(); form.dataset.confirmed='1'; form.submit(); };
+    });
+  }
+
+  // Live product name preview + custom suggestions
+  const lookupUrl = "{{ url_for('debtops.ops_lookup') }}";
+  const searchUrl = "{{ url_for('debtops.ops_search') }}";
+  function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn.apply(null,a),ms); }; }
+  async function updatePreviewByBarcode(value, out){
+    const code = (value||'').trim(); if(!out) return; if(!code){ out.textContent=''; return; }
+    if(!/^[0-9]{4,}$/.test(code)){ out.textContent=''; return; }
+    try{
+      const r = await fetch(lookupUrl + '?barcode=' + encodeURIComponent(code));
+      const data = await r.json();
+      if(data && data.ok && data.found){ out.textContent = data.product.name; }
+      else{ out.textContent = 'Товар не найден'; }
+    }catch(e){ out.textContent=''; }
+  }
+  async function fetchSuggest(q, limit){
+    const r = await fetch(searchUrl + '?q=' + encodeURIComponent(q) + '&limit=' + (limit||200));
+    return await r.json();
+  }
+  function renderSuggest(listEl, items){
+    if(!listEl) return; listEl.innerHTML='';
+    if(!items || !items.length){ listEl.classList.remove('show'); return; }
+    items.forEach(it=>{
+      const d=document.createElement('div'); d.className='item';
+      d.innerHTML = '<div class="name"></div><div class="meta"></div>';
+      d.querySelector('.name').textContent = it.name;
+      d.querySelector('.meta').textContent = it.barcodes||'';
+      d.dataset.id = it.id; listEl.appendChild(d);
+    });
+    listEl.classList.add('show');
+  }
+  function attach(inputId, listId, hiddenId, previewId){
+    const inp=document.getElementById(inputId), listEl=document.getElementById(listId), hidden=document.getElementById(hiddenId), out=document.getElementById(previewId);
+    if(!inp || !listEl) return;
+    const runPrev = debounce(()=>updatePreviewByBarcode(inp.value, out), 250);
+    const runSug = debounce(async ()=>{ const q=(inp.value||'').trim(); if(q.length<2){ listEl.classList.remove('show'); listEl.innerHTML=''; hidden.value=''; return; } const data=await fetchSuggest(q, 200); renderSuggest(listEl, (data&&data.ok&&data.items)||[]); }, 200);
+    inp.addEventListener('input', ()=>{ runPrev(); runSug(); hidden.value=''; });
+    inp.addEventListener('focus', ()=>{ const q=(inp.value||'').trim(); if(q.length>=2) runSug(); });
+    document.addEventListener('click', (e)=>{ if(!listEl.contains(e.target) && e.target!==inp){ listEl.classList.remove('show'); }});
+    listEl.addEventListener('click', (e)=>{ const it=e.target.closest('.item'); if(!it) return; inp.value=it.querySelector('.name').textContent||''; hidden.value=it.dataset.id||''; listEl.classList.remove('show'); out && (out.textContent=inp.value); });
+    inp.addEventListener('keydown', (e)=>{
+      if(!listEl.classList.contains('show')) return;
+      const items=Array.from(listEl.querySelectorAll('.item')); if(!items.length) return;
+      let idx=items.findIndex(x=>x.classList.contains('active'));
+      if(e.key==='ArrowDown'){ idx=Math.min(idx+1, items.length-1); items.forEach(x=>x.classList.remove('active')); items[idx].classList.add('active'); e.preventDefault(); }
+      else if(e.key==='ArrowUp'){ idx=Math.max(idx-1, 0); items.forEach(x=>x.classList.remove('active')); items[idx].classList.add('active'); e.preventDefault(); }
+      else if(e.key==='Enter'){ const it=items[idx>=0?idx:0]; if(it){ inp.value=it.querySelector('.name').textContent||''; hidden.value=it.dataset.id||''; listEl.classList.remove('show'); out && (out.textContent=inp.value); } }
+      else if(e.key==='Escape'){ listEl.classList.remove('show'); }
+    });
+  }
+  attach('assign_barcode','assign_suggest','assign_product_id','assign_preview');
+  attach('defect_barcode','defect_suggest','defect_product_id','defect_preview');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+/* === Cashier: LIST (.cr) — базовая тема === */
+.cr{
+  --brand:#ffc400; --sub:#ffe379; --bg:#0e1118;
+  --row1:#141a29; --row2:#111827;
+  --line:#263149; --fg:#f6e6a8; --ok:#69d36b; --bad:#ff6e6e;
+  --hover:#1e2740; --sep:#3a4a72;
+
+  --day-bg:rgba(255,222,106,.10);
+  --day-bg-h:rgba(255,222,106,.18);
+  --night-bg:rgba(106,166,255,.12);
+  --night-bg-h:rgba(106,166,255,.22);
+  --tot-bg:rgba(255,255,255,.06);
+}
+
+/* Тулбар месяца */
+.cr .cr-toolbar{display:flex;align-items:end;gap:.75rem;margin:.75rem 0 .25rem}
+.cr .cr-toolbar .month-input{min-width:18ch;font-weight:800;font-size:1.05rem;padding:.5rem .75rem}
+
+/* контейнер таблицы: вертикальная прокрутка, без верх/низ паддингов */
+.cr .wrap{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:0 .4rem 0;
+  background:var(--bg);
+  overflow:auto;
+  max-height:calc(100vh - 180px);
+}
+
+/* таблица */
+.cr table{
+  width:max-content;
+  border-collapse:separate;
+  border-spacing:0;
+  color:var(--fg);
+  font-variant-numeric:tabular-nums;
+  margin:0 auto;
+}
+.cr th,.cr td{border:1px solid var(--line);padding:.38rem .5rem;white-space:nowrap;vertical-align:middle}
+
+/* закреплённый заголовок */
+.cr thead th{
+  position:sticky; top:0; z-index:6;
+  background:linear-gradient(180deg,#151a27,#10131b);
+  text-transform:uppercase;letter-spacing:.06em;font-size:.78rem;color:var(--sub);
+}
+.cr thead th.sticky{left:0;z-index:7}
+
+/* закреплённый футер: статистика + итог */
+.cr tfoot{position:sticky; bottom:0; z-index:6}
+.cr tfoot .month-total > *{
+  background:linear-gradient(180deg,#21273a,#1a2133);
+  border-top:3px solid var(--sep);
+  font-weight:800;
+}
+.cr tfoot .month-stats > *{
+  background:linear-gradient(180deg,#1b2236,#161d2e);
+  border-top:1px solid var(--sep);
+  font-weight:700;
+}
+/* фиксим ховер нижних строк: никакой полупрозрачности */
+.cr tfoot .month-total:hover > *,
+.cr tfoot .month-stats:hover > *{
+  background:inherit;
+}
+.cr tfoot .month-total:hover > *{
+  background:linear-gradient(180deg,#21273a,#1a2133)!important;
+}
+.cr tfoot .month-stats:hover > *{
+  background:linear-gradient(180deg,#1b2236,#161d2e)!important;
+}
+
+/* левая липкая колонка */
+.cr .sticky{position:sticky;left:0;background:linear-gradient(180deg,#1b2133,#151b2a);z-index:4}
+.cr .date{font-weight:700}
+.cr .num{text-align:right}
+
+/* дефолтная зебра */
+.cr tbody tr:not(.day):not(.night):not(.total):not(.cr-row-day):not(.cr-row-night):not(.cr-row-total)>*{background:var(--row1)}
+.cr tbody tr:nth-child(even):not(.day):not(.night):not(.total):not(.cr-row-day):not(.cr-row-night):not(.cr-row-total)>*{background:var(--row2)}
+.cr tbody tr:not(.day):not(.night):not(.total):not(.cr-row-day):not(.cr-row-night):not(.cr-row-total):hover>*{background:var(--hover)}
+
+/* подсветка смен */
+.cr tr.day>*, .cr .cr-row-day>*{background:var(--day-bg)}
+.cr tr.night>*, .cr .cr-row-night>*{background:var(--night-bg)}
+.cr tr.total>*, .cr .cr-row-total>*{background:var(--tot-bg)}
+.cr tr.day:hover>*, .cr .cr-row-day:hover>*{background:var(--day-bg-h)}
+.cr tr.night:hover>*, .cr .cr-row-night:hover>*{background:var(--night-bg-h)}
+.cr tr.total:hover>*, .cr .cr-row-total:hover>*{background:var(--tot-bg)}
+
+/* толстые разделители между сутками */
+.cr tr.day>*, .cr .cr-row-day>*{border-top:3px solid var(--sep)!important}
+.cr tr.total>*, .cr .cr-row-total>*{border-bottom:3px solid var(--sep)!important}
+
+/* VIEW */
+.view-wrap{--line:#263149; --ok:#69d36b; --bad:#ff6e6e}
+.view-wrap .kv{display:grid;grid-template-columns:1fr 2fr;gap:.35rem 1rem}
+.view-wrap .kv div{padding:.35rem .6rem;border:1px solid var(--line);border-radius:10px}
+.view-wrap .num{text-align:right}
+.kpi-ok{color:var(--ok);font-weight:700}
+.kpi-bad{color:var(--bad);font-weight:700}
+.cz-table{width:100%;border-collapse:separate;border-spacing:0}
+.cz-table th,.cz-table td{border:1px solid var(--line);padding:.5rem .6rem}
+.cz-table thead th{background:linear-gradient(180deg,#151a27,#10131b)}
+.cz-modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:1000}
+.cz-modal[hidden]{display:none}
+.cz-modal__dialog{background:#0f1320;border:1px solid #263149;border-radius:14px;max-width:920px;width:96%;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.cz-modal__head{font-weight:800;color:#ffc400;margin-bottom:8px}
+.cz-modal__body{max-height:70vh;overflow:auto}
+.cz-modal__foot{display:flex;gap:.5rem;justify-content:flex-end;margin-top:10px}
+.cz-warn{color:#ffb84d}
+.cz-err{color:#ff6e6e}
+
+/* Дата-колонка и выходные */
+.cr{--date-bg:#12182a;--date-wkend:#0f1b33}
+.cr .sticky.date{background:var(--date-bg)!important}
+.cr tr.day > .sticky.date, .cr .cr-row-day > .sticky.date,
+.cr tr.night > .sticky.date, .cr .cr-row-night > .sticky.date{background:var(--date-bg)!important}
+.cr .sticky.date.wkend{background:var(--date-wkend)!important}
+.cr .sticky.date.grp-date-end{border-bottom:3px solid var(--sep)!important}
+.cr .sticky.date .dow{font-size:.78rem;color:#b9c2de;margin-top:2px}
+
+/* выходные: базовая и hover-заливка */
+.cr{--wk-day-bg:rgba(255,222,106,.22);--wk-night-bg:rgba(106,166,255,.32);--wk-tot-bg:rgba(255,255,255,.12)}
+.cr .cr-row-day.wkend>*{background:var(--wk-day-bg)}
+.cr .cr-row-night.wkend>*{background:var(--wk-night-bg)}
+.cr .cr-row-total.wkend>*{background:var(--wk-tot-bg)}
+.cr{--wk-day-bg-h:rgba(255,222,106,.30);--wk-night-bg-h:rgba(106,166,255,.42);--wk-tot-bg-h:rgba(255,255,255,.18)}
+.cr .cr-row-day.wkend:hover>*{background:var(--wk-day-bg-h)}
+.cr .cr-row-night.wkend:hover>*{background:var(--wk-night-bg-h)}
+.cr .cr-row-total.wkend:hover>*{background:var(--wk-tot-bg-h)}
+
+/* Слоты */
+:root{
+  --cz-slot-bg:#111; --cz-slot-bg-hover:#191919;
+  --cz-slot-bg-weekend:#17130a; --cz-slot-bg-weekend-hover:#211a0b;
+  --cz-slot-brd:#2a2a2a; --cz-slot-brd-hover:#3a3a3a;
+}
+.cashier .slot{background:var(--cz-slot-bg);border:1px solid var(--cz-slot-brd);transition:background-color .15s,border-color .15s,box-shadow .15s}
+.cashier .slot:hover{background:var(--cz-slot-bg-hover);border-color:var(--cz-slot-brd-hover);box-shadow:0 0 0 2px rgba(255,204,0,.15) inset}
+.cashier .is-weekend .slot,.cashier .weekend .slot,.cashier .slot[data-weekend="1"]{background:var(--cz-slot-bg-weekend)}
+.cashier .is-weekend .slot:hover,.cashier .weekend .slot:hover,.cashier .slot[data-weekend="1"]:hover{background:var(--cz-slot-bg-weekend-hover);box-shadow:0 0 0 2px rgba(255,204,0,.25) inset}
+.cashier .slot.is-disabled,.cashier .slot[aria-disabled="true"]{opacity:.6;pointer-events:none;box-shadow:none}
+.cashier .slot.is-selected{outline:2px solid #ffcc00;background:linear-gradient(0deg,rgba(255,204,0,.08),rgba(255,204,0,.08)),var(--cz-slot-bg-hover)}
+
+/* Скроллбары COLIZEUM */
+/* Firefox */
+html, body{scrollbar-width:thin;scrollbar-color:#3a4976 #0f1320}
+.cr .wrap{scrollbar-width:thin;scrollbar-color:#3a4976 #0f1320}
+/* WebKit */
+*::-webkit-scrollbar{width:12px;height:12px}
+*::-webkit-scrollbar-track{background:#0f1320;box-shadow:inset 0 0 0 1px #263149;border-radius:12px}
+*::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#2b3550,#233049);border:2px solid #0f1320;border-radius:12px}
+*::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,#364368,#2c3a57)}
+*::-webkit-scrollbar-thumb:active{background:#ffc400;border-color:#ffc400}
+*::-webkit-scrollbar-corner{background:transparent}
+.cr .wrap::-webkit-scrollbar{width:10px;height:10px}
+.cr .wrap::-webkit-scrollbar-track{background:#0f1320;box-shadow:inset 0 0 0 1px #263149;border-radius:10px}
+.cr .wrap::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#2b3550,#233049);border:2px solid #0f1320;border-radius:10px}
+.cr .wrap::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,#364368,#2c3a57)}
+.cr .wrap::-webkit-scrollbar-thumb:active{background:#ffc400;border-color:#ffc400}

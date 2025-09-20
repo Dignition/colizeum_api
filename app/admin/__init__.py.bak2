@@ -1,0 +1,372 @@
+from __future__ import annotations
+
+from datetime import date
+import io, csv, re
+
+from flask import Blueprint, render_template, request, redirect, url_for, Response, flash
+from flask_login import login_required
+from sqlalchemy import and_, text
+
+from ..extensions import db
+from ..models import CashierReport
+from ..security import roles_required  # superadmin
+from ..models.inventory import Product, ClubProductBarcode, ensure_club_barcode_price_column
+
+bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+
+def _month_bounds(m: str | None):
+    """Возврат (start, end) для месяца m в формате YYYY-MM."""
+    today = date.today()
+    if m:
+        y, mm = map(int, m.split("-"))
+    else:
+        y, mm = today.year, today.month
+    start = date(y, mm, 1)
+    end = date(y + (1 if mm == 12 else 0), 1 if mm == 12 else mm + 1, 1)
+    return start, end
+
+
+@bp.route("/")
+@login_required
+@roles_required("superadmin")
+def index():
+    """Панель управления."""
+    month_str = f"{date.today():%Y-%m}"
+    return render_template("admin/index.html", month_str=month_str)
+
+
+@bp.route("/cashier")
+@login_required
+@roles_required("superadmin")
+def cashier_admin():
+    """Список отчётов кассира за месяц + экспорт CSV."""
+    m = request.args.get("m")
+    start, end = _month_bounds(m)
+
+    q = (
+        db.session.query(CashierReport)
+        .filter(and_(CashierReport.shift_date >= start, CashierReport.shift_date < end))
+        .order_by(
+            CashierReport.shift_date.asc(), CashierReport.shift_type.asc(), CashierReport.id.asc()
+        )
+    )
+
+    if request.args.get("export") == "csv":
+        buf = io.StringIO(newline="")
+        w = csv.writer(buf, delimiter=";")
+        w.writerow(
+            [
+                "Дата",
+                "Смена",
+                "Администратор",
+                "Игровое+PS",
+                "Бар",
+                "Нал",
+                "Расширенная оплата",
+                "СБП эквайринг",
+                "CLS",
+                "Эквайринг",
+                "Расход",
+                "Возврат нал",
+                "Возврат безнал",
+                "Равно?",
+                "Остаток нал",
+                "Инкассация",
+            ]
+        )
+        for r in q.all():
+            user = getattr(r, "user", None)
+            fio = getattr(user, "full_name", None) or getattr(user, "username", None) or ""
+            w.writerow(
+                [
+                    r.shift_date.isoformat(),
+                    "День" if getattr(r, "shift_type", "") == "day" else "Ночь",
+                    fio,
+                    float(getattr(r, "game_ps", 0) or 0),
+                    float(getattr(r, "bar", 0) or 0),
+                    float(getattr(r, "cash", 0) or 0),
+                    float(getattr(r, "extended", 0) or 0),
+                    float(getattr(r, "sbp_acq", 0) or 0),
+                    float(getattr(r, "cls", 0) or 0),
+                    float(getattr(r, "acquiring", 0) or 0),
+                    float(getattr(r, "expense", 0) or 0),
+                    float(getattr(r, "refund_cash", 0) or 0),
+                    float(getattr(r, "refund_noncash", 0) or 0),
+                    getattr(r, "is_equal", None) or "",
+                    float(getattr(r, "cash_left", 0) or 0),
+                    float(getattr(r, "encashment", 0) or 0),
+                ]
+            )
+        data = buf.getvalue().encode("utf-8-sig")
+        filename = f"cashier_{start:%Y-%m}.csv"
+        return Response(
+            data,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    return render_template("admin/reports.html", items=q.all(), month_str=f"{start:%Y-%m}")
+
+
+@bp.route("/cashier/<int:rid>/delete", methods=["POST"])
+@login_required
+@roles_required("superadmin")
+def cashier_delete(rid: int):
+    """Удаление отчёта кассира."""
+    r = db.session.get(CashierReport, rid)
+    if not r:
+        flash("Отчёт не найден", "warning")
+        return redirect(url_for("admin.cashier_admin", m=request.args.get("m")))
+    db.session.delete(r)
+    db.session.commit()
+    flash("Отчёт удалён", "success")
+    return redirect(url_for("admin.cashier_admin", m=request.args.get("m")))
+
+
+@bp.route("/debts-import", methods=["GET"])
+@login_required
+@roles_required("superadmin")
+def debts_import():
+    # Страница объединена с /admin/debts-products
+    return redirect(url_for("admin.debts_products"))
+
+
+def _parse_barcodes(text_val: str) -> list[str]:
+    s = "" if text_val is None else str(text_val).strip()
+    if not s:
+        return []
+    tokens = re.split(r"[,;\s|/\\]+", s)
+    out, seen = [], set()
+    for t in tokens:
+        b = re.sub(r"\D", "", str(t))
+        if b and b not in seen:
+            seen.add(b)
+            out.append(b)
+    return out
+
+
+@bp.route("/debts-products", methods=["GET", "POST"])
+@login_required
+@roles_required("superadmin")
+def debts_products():
+    ensure_club_barcode_price_column()
+
+    clubs = db.session.execute(
+        text('SELECT id,name FROM "club" WHERE COALESCE(is_active,1)=1 ORDER BY name')
+    ).mappings().all()
+
+    # Current club id
+    try:
+        cid = int(request.args.get("club_id") or request.form.get("club_id") or 0)
+    except Exception:
+        cid = 0
+    if not cid and clubs:
+        cid = int(clubs[0]["id"])  # default to the first club
+
+    # Row to edit inline
+    try:
+        edit_id = int(request.args.get("edit") or 0) or None
+    except Exception:
+        edit_id = None
+
+    # Inline update of a product + its barcodes
+    if request.method == "POST" and request.form.get("op") == "update":
+        try:
+            pid = int(request.form.get("product_id") or 0)
+        except Exception:
+            pid = 0
+        name = (request.form.get("name") or "").strip()
+        price_raw = (request.form.get("purchase_price") or "0").replace(",", ".")
+        codes_raw = request.form.get("barcodes") or ""
+        try:
+            purchase = float(price_raw)
+        except Exception:
+            purchase = 0.0
+
+        p = db.session.get(Product, pid)
+        if not p:
+            flash("Товар не найден", "warning")
+            return redirect(url_for("admin.debts_products", club_id=cid))
+        if name:
+            p.name = name
+        p.purchase_price = purchase  # type: ignore[attr-defined]
+
+        tokens = re.split(r"[,;\s|/\\]+", str(codes_raw))
+        uniq, seen = [], set()
+        for t in tokens:
+            b = re.sub(r"\D", "", str(t))
+            if b and b not in seen:
+                seen.add(b)
+                uniq.append(b)
+        db.session.execute(
+            text('DELETE FROM "club_product_barcode" WHERE club_id=:c AND product_id=:p'),
+            {"c": cid, "p": pid},
+        )
+        for bc in uniq:
+            db.session.execute(
+                text(
+                    'INSERT OR REPLACE INTO "club_product_barcode"(club_id,product_id,barcode) VALUES (:c,:p,:b)'
+                ),
+                {"c": cid, "p": pid, "b": bc},
+            )
+        db.session.commit()
+        flash("Товар обновлён", "primary")
+        return redirect(url_for("admin.debts_products", club_id=cid))
+
+    # Import from XLSX/CSV generated by web-admin
+    if request.method == "POST" and request.form.get("op") == "import":
+        ensure_club_barcode_price_column()
+        f = request.files.get("file")
+        if not cid or not f:
+            flash("Выберите клуб и файл .xlsx/.csv", "warning")
+            return redirect(url_for("admin.debts_products", club_id=cid))
+        filename = (getattr(f, "filename", "") or "").lower()
+        content = f.read()
+
+        rows: list[dict] = []
+        if filename.endswith(".xlsx"):
+            try:
+                import openpyxl
+
+                wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+                ws = wb.active
+                it = ws.iter_rows(values_only=True)
+                try:
+                    next(it)  # skip title row
+                except Exception:
+                    pass
+                headers = list(next(it, []) or [])
+
+                def norm(h: object) -> str:
+                    return str(h or "").strip().lower().replace("\n", " ")
+
+                idx = {norm(headers[i]): i for i in range(len(headers))}
+                name_i = idx.get("название") or idx.get("наименование") or idx.get("name")
+                price_i = idx.get("цена закупки") or idx.get("purchase_price") or idx.get("закупка")
+                art_i = (
+                    idx.get("артикулы")
+                    or idx.get("штрихкод")
+                    or idx.get("штрих-код")
+                    or idx.get("barcode")
+                )
+                cat_i = idx.get("категория") or idx.get("category")
+                for r in it:
+                    if not r:
+                        continue
+                    cat = (
+                        str(r[cat_i]).strip()
+                        if cat_i is not None and cat_i < len(r) and r[cat_i] is not None
+                        else ""
+                    )
+                    if cat == "-":
+                        continue
+                    name = (
+                        str(r[name_i]).strip()
+                        if name_i is not None and name_i < len(r) and r[name_i] is not None
+                        else ""
+                    )
+                    price_raw = (
+                        str(r[price_i]).strip()
+                        if price_i is not None and price_i < len(r) and r[price_i] is not None
+                        else "0"
+                    )
+                    arts_raw = r[art_i] if art_i is not None and art_i < len(r) else ""
+                    rows.append(
+                        {"name": name, "purchase_price": price_raw, "barcode": arts_raw}
+                    )
+            except Exception as e:
+                flash(f"Не удалось прочитать XLSX: {e}", "danger")
+                return redirect(url_for("admin.debts_products", club_id=cid))
+        else:
+            # CSV: try utf-8-sig first, then cp1251, then lenient utf-8
+            text_data: str
+            try:
+                text_data = content.decode("utf-8-sig")
+            except Exception:
+                try:
+                    text_data = content.decode("cp1251")
+                except Exception:
+                    text_data = content.decode(errors="ignore")
+
+            reader = csv.DictReader(io.StringIO(text_data), delimiter=";")
+            if not reader.fieldnames:
+                reader = csv.DictReader(io.StringIO(text_data))
+            rows.extend(list(reader))
+
+        new_products = linked = updated_links = skipped = 0
+        for row in rows:
+            # Normalize keys coming from CSV to be robust
+            rnorm = {str(k or "").strip().lower(): v for k, v in dict(row).items()}
+            name = (
+                (rnorm.get("name") or rnorm.get("название") or rnorm.get("наименование") or "").strip()
+            )
+            barcode_cell = rnorm.get("barcode") or rnorm.get("артикулы") or rnorm.get("штрихкод") or rnorm.get("штрих-код") or ""
+            price_raw = (
+                rnorm.get("purchase_price")
+                or rnorm.get("цена закупки")
+                or rnorm.get("закупка")
+                or "0"
+            )
+            try:
+                purchase = float(str(price_raw).replace(",", "."))
+            except Exception:
+                purchase = 0.0
+            barcodes = _parse_barcodes(barcode_cell)
+            if not name or not barcodes:
+                skipped += 1
+                continue
+            p = Product.query.filter_by(name=name).first()
+            if not p:
+                p = Product(name=name, purchase_price=purchase, sell_price=0, is_active=True)  # type: ignore[arg-type]
+                db.session.add(p)
+                db.session.flush()
+                new_products += 1
+            for bc in barcodes:
+                mp = ClubProductBarcode.query.filter_by(club_id=cid, barcode=bc).first()
+                if not mp:
+                    db.session.add(
+                        ClubProductBarcode(
+                            club_id=cid, product_id=p.id, barcode=bc, purchase_price=purchase
+                        )
+                    )
+                    linked += 1
+                else:
+                    if mp.product_id != p.id:
+                        mp.product_id = p.id
+                        updated_links += 1
+                    try:
+                        if purchase:
+                            mp.purchase_price = purchase
+                    except Exception:
+                        pass
+        db.session.commit()
+        flash(
+            f"Импорт завершён: товаров создано {new_products}, связей добавлено {linked}, обновлено {updated_links}, пропущено {skipped}.",
+            "primary",
+        )
+
+    ensure_club_barcode_price_column()
+    q = (
+        db.session.execute(
+            text(
+                """
+        SELECT p.id, p.name,
+               COALESCE(MAX(cb.purchase_price), COALESCE(p.purchase_price,0)) AS purchase_price,
+               GROUP_CONCAT(cb.barcode, ', ') AS barcodes
+        FROM club_product_barcode cb
+        JOIN product p ON p.id = cb.product_id
+        WHERE cb.club_id = :c
+        GROUP BY p.id, p.name
+        ORDER BY p.name
+        """
+            ),
+            {"c": cid},
+        ).mappings().all()
+        if cid
+        else []
+    )
+    return render_template(
+        "admin/debts_products.html", clubs=clubs, club_id=cid, items=q, edit_id=edit_id
+    )
+

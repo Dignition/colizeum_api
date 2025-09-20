@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Клубы · Администрирование{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/admin.css') }}">{% endblock %}
+{% block content %}
+<div class="adm container py-3">
+  <h3 class="adm-title">Клубы</h3>
+  {% include "admin/_clusters.html" %}
+
+  <form method="post" class="adm-card p-3 mb-3">
+    <input type="hidden" name="op" value="create">
+    <div class="row g-2">
+      <div class="col-md-4">
+        <label class="form-label">Название (добавим «COLIZEUM » если нет)</label>
+        <input name="name" class="form-control" placeholder="Moscow" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Таймзона</label>
+        <select name="timezone" class="form-select">
+          {% for tz in tz_opts %}
+            <option value="{{ tz.id }}" {{ 'selected' if tz.id=='Europe/Moscow' else '' }}>{{ tz.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Активен</label>
+        <select name="is_active" class="form-select"><option value="1" selected>Да</option><option value="0">Нет</option></select>
+      </div>
+      <div class="col-md-2 d-flex align-items-end"><button class="btn btn-warning w-100">Добавить клуб</button></div>
+    </div>
+  </form>
+
+  <div class="table-responsive adm-table-wrap">
+    <table class="table table-sm align-middle adm-table">
+      <thead><tr><th>ID</th><th>Название</th><th>Таймзона</th><th>Активен</th><th class="text-end">Действия</th></tr></thead>
+      <tbody>
+        {% for c in clubs %}
+        <tr>
+          <td>{{ c.id }}</td>
+          <td>
+            <form method="post" class="d-flex gap-2">
+              <input type="hidden" name="op" value="update">
+              <input type="hidden" name="id" value="{{ c.id }}">
+              <input name="name" class="form-control form-control-sm" value="{{ c.name }}">
+          </td>
+          <td>
+            <select name="timezone" class="form-select form-select-sm">
+              {% for tz in tz_opts %}
+                <option value="{{ tz.id }}" {{ 'selected' if tz.id==c.timezone else '' }}>{{ tz.label }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <select name="is_active" class="form-select form-select-sm">
+              <option value="1" {{ 'selected' if c.is_active else '' }}>Да</option>
+              <option value="0" {{ '' if c.is_active else 'selected' }}>Нет</option>
+            </select>
+          </td>
+          <td class="text-end">
+              <button class="btn btn-sm btn-primary">Сохранить</button>
+            </form>
+            <form method="post" class="d-inline">
+              <input type="hidden" name="op" value="delete"><input type="hidden" name="id" value="{{ c.id }}">
+              <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Удалить клуб?')">Удалить</button>
+            </form>
+          </td>
+        </tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

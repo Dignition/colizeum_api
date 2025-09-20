@@ -1,0 +1,367 @@
+﻿{% extends "base.html" %}
+{% block title %}Инвентаризация · COLIZEUM{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/admin.css') }}">{% endblock %}
+{% block content %}
+<div class="adm container-fluid px-4 py-3">
+  <h3 class="adm-title">Инвентаризация</h3>
+
+  <div class="cz-fieldset mb-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label mb-0">Клуб</label>
+        <form method="get" class="d-flex gap-2">
+          <select name="club_id" class="form-select form-select-sm cz-input" onchange="this.form.submit()">
+            <option value="" {{ 'selected' if not club_id else '' }}>— выберите клуб —</option>
+            {% for c in clubs %}
+              <option value="{{ c.id }}" {{ 'selected' if club_id and c.id == club_id else '' }}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn cz-btn" type="submit">Показать</button>
+        </form>
+      </div>
+      <div class="col-md-7 text-end">
+        <label class="form-label mb-0">Импорт остатков (XLSX/CSV)</label>
+        <form method="post" enctype="multipart/form-data" class="d-flex gap-2 justify-content-end">
+          <input type="file" name="file" class="form-control cz-input" accept=".xlsx,.csv">
+          <button class="btn cz-btn" type="submit">Загрузить</button>
+        </form>
+      </div>
+    </div>
+    {% if import_errors %}
+      <div class="alert alert-warning mt-2">
+        <div><b>Во время импорта были пропуски:</b></div>
+        <ul class="mb-0">
+          {% for e in import_errors %}<li>{{ e }}</li>{% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xxl-9 col-xl-9 col-lg-8">
+      <div class="cz-fieldset inventory-session" data-default-width="{{ request.cookies.get('inv_name_width', '') }}">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <div class="cz-legend mb-0">Текущая сессия</div>
+          {% if has_session %}
+            <div class="d-flex gap-2">
+              <form method="post" action="{{ url_for('inventory.reset_session') }}" onsubmit="return confirm('Сбросить текущую сессию и очистить данные?');">
+                <input type="hidden" name="club_id" value="{{ club_id }}">
+                <button class="btn btn-sm btn-outline-secondary">Сбросить сессию</button>
+              </form>
+              <form method="post" action="{{ url_for('inventory.close_session') }}" onsubmit="return confirm('Закрыть текущую сессию?');">
+                <input type="hidden" name="club_id" value="{{ club_id }}">
+                <button class="btn btn-sm btn-outline-danger">Закрыть сессию</button>
+              </form>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="inventory-controls">
+          <label for="name-width-range" class="form-label mb-0">Ширина колонки «Товар»</label>
+          <input type="range" id="name-width-range" min="220" max="720" step="10" value="{{ request.cookies.get('inv_name_width', 320) }}" class="form-range">
+          <span id="name-width-value" class="text-muted small"></span>
+        </div>
+
+        <div class="cz-table-wrap" style="overflow:auto;">
+          <table class="cz-table-grid inventory-sort" id="inv-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-key="name">Товар</th>
+                <th class="cz-td-right sortable" data-key="expected">Учёт</th>
+                <th class="cz-td-right sortable" data-key="fridge">Бар</th>
+                <th class="cz-td-right sortable" data-key="store">Склад</th>
+                <th class="cz-td-right sortable" data-key="total">Итого</th>
+                <th class="cz-td-right sortable" data-key="debt">Долг</th>
+                <th class="cz-td-right sortable" data-key="shortage">Недостача</th>
+                <th class="cz-td-right sortable" data-key="writeoff">Списания</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for it in items %}
+              {% set debt = debts.get(it.id, 0) %}
+              <tr data-id="{{ it.id }}" data-price="{{ (price_map.get(it.id) if price_map else 0) }}">
+                <td>{{ it.name }}</td>
+                <td class="cz-td-right exp">{{ it.expected_qty }}</td>
+                <td class="cz-td-right"><input class="form-control form-control-sm cz-input fridge" inputmode="numeric" value=""></td>
+                <td class="cz-td-right"><input class="form-control form-control-sm cz-input store" inputmode="numeric" value=""></td>
+                <td class="cz-td-right total">0</td>
+                <td class="cz-td-right debt" data-debt="{{ debt }}">{{ debt }}</td>
+                <td class="cz-td-right shortage">0</td>
+                <td class="cz-td-right writeoff">0</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-muted">Нет данных. Загрузите файл с остатками.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xxl-3 col-xl-3 col-lg-4">
+      <div class="cz-fieldset inventory-sticky">
+        <div class="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
+          <div class="cz-legend mb-0">Админы и распределение</div>
+          {% if has_session %}<button id="save-btn" class="btn btn-sm cz-btn">Инвентаризация проведена</button>{% endif %}
+        </div>
+        <div class="cz-table-wrap">
+          <table class="cz-table-grid">
+            <thead>
+              <tr>
+                <th>Сотрудник</th><th class="cz-td-right">Смен</th><th class="cz-td-right">Доля</th><th class="cz-td-right">Недостача, ₽</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in admin_stats or [] %}
+              <tr data-share="{{ a.share }}">
+                <td>{{ a.name }}</td>
+                <td class="cz-td-right">{{ a.shifts }}</td>
+                <td class="cz-td-right">{{ (a.share*100)|round(2) }}%</td>
+                <td class="cz-td-right adm-alloc">{{ a.allocated|fmt }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-muted">Нет данных для распределения.</td></tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="3" class="text-end">Суммарная недостача:</th>
+                <th class="cz-td-right" id="shortage_total_value">{{ shortage_value|fmt }}</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  const sessionBlock = document.querySelector('.inventory-session');
+  const slider = document.getElementById('name-width-range');
+  const sliderValue = document.getElementById('name-width-value');
+  const STORAGE_KEY = 'inventory-name-width';
+  const DEFAULT_WIDTH = 320;
+
+  function clampWidth(val){
+    const min = slider ? parseInt(slider.min, 10) : 220;
+    const max = slider ? parseInt(slider.max, 10) : 720;
+    const n = parseInt(val, 10);
+    if(Number.isNaN(n)) return DEFAULT_WIDTH;
+    return Math.min(Math.max(n, min), max);
+  }
+
+  function applyWidth(px){
+    if(sessionBlock){
+      sessionBlock.style.setProperty('--inventory-name-width', `${px}px`);
+    }
+    if(sliderValue){
+      sliderValue.textContent = `${px} px`;
+    }
+  }
+
+  if(sessionBlock && slider){
+    let stored = localStorage.getItem(STORAGE_KEY);
+    if(!stored && sessionBlock.dataset.defaultWidth){
+      stored = sessionBlock.dataset.defaultWidth;
+    }
+    const startWidth = clampWidth(stored || slider.value || DEFAULT_WIDTH);
+    slider.value = startWidth;
+    applyWidth(startWidth);
+
+    slider.addEventListener('input', () => {
+      const value = clampWidth(slider.value);
+      applyWidth(value);
+      localStorage.setItem(STORAGE_KEY, String(value));
+      document.cookie = `inv_name_width=${value}; path=/; max-age=${60*60*24*30}`;
+    });
+  }
+
+  function fmt(n){
+    return (Math.round(n * 100) / 100).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function toInt(v){
+    const n = parseInt(String(v || '').replace(/\D+/g, ''), 10);
+    return Number.isNaN(n) ? 0 : n;
+  }
+  function paint(cell, val){
+    if(!cell) return;
+    if(val > 0) cell.style.background = 'rgba(255,110,110,.15)';
+    else if(val < 0) cell.style.background = 'rgba(105,211,107,.15)';
+    else cell.style.background = 'transparent';
+  }
+  function recalcRow(tr){
+    const exp = toInt(tr.querySelector('.exp')?.textContent);
+    const fridge = toInt(tr.querySelector('input.fridge')?.value);
+    const store = toInt(tr.querySelector('input.store')?.value);
+    const debt = toInt(tr.querySelector('.debt')?.dataset.debt);
+    const total = fridge + store;
+    tr.querySelector('.total').textContent = total;
+    const shortage = exp - total - debt;
+    tr.querySelector('.shortage').textContent = shortage;
+    const writeoff = exp - total;
+    tr.querySelector('.writeoff').textContent = writeoff;
+    paint(tr.querySelector('.shortage'), shortage);
+    paint(tr.querySelector('.writeoff'), writeoff);
+    return { shortageUnits: shortage, price: Number(tr.getAttribute('data-price') || '0') };
+  }
+  function recalcAll(){
+    let totalValue = 0;
+    document.querySelectorAll('#inv-table tbody tr').forEach(tr => {
+      const res = recalcRow(tr);
+      if(res) totalValue += res.shortageUnits * (res.price || 0);
+    });
+    const totalEl = document.getElementById('shortage_total_value');
+    if(totalEl) totalEl.textContent = fmt(totalValue);
+    document.querySelectorAll('.adm-alloc').forEach(cell => {
+      const share = Number(cell.parentElement?.getAttribute('data-share') || '0');
+      cell.textContent = fmt(totalValue * share);
+    });
+  }
+
+  document.querySelectorAll('#inv-table tbody tr').forEach(tr => {
+    tr.addEventListener('input', e => {
+      if(e.target.matches('input.fridge, input.store')) recalcAll();
+    });
+  });
+  recalcAll();
+
+  const invTbody = document.querySelector('#inv-table tbody');
+  if(invTbody){
+    Array.from(invTbody.querySelectorAll('tr')).forEach((tr, i) => { tr.dataset.index = String(i); });
+  }
+
+  function getValue(tr, key){
+    switch(key){
+      case 'name': return String(tr.querySelector('td:nth-child(1)')?.textContent || '').trim().toLowerCase();
+      case 'expected': return parseInt(tr.querySelector('.exp')?.textContent || '0');
+      case 'fridge': return parseInt(tr.querySelector('input.fridge')?.value || '0');
+      case 'store': return parseInt(tr.querySelector('input.store')?.value || '0');
+      case 'total': return parseInt(tr.querySelector('.total')?.textContent || '0');
+      case 'debt': return parseInt(tr.querySelector('.debt')?.getAttribute('data-debt') || tr.querySelector('.debt')?.textContent || '0');
+      case 'shortage': return parseInt(tr.querySelector('.shortage')?.textContent || '0');
+      case 'writeoff': return parseInt(tr.querySelector('.writeoff')?.textContent || '0');
+      default: return 0;
+    }
+  }
+
+  function sortBy(key, dir){
+    recalcAll();
+    const tbody = document.querySelector('#inv-table tbody');
+    if(!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const isText = key === 'name';
+    rows.sort((a, b) => {
+      const va = getValue(a, key);
+      const vb = getValue(b, key);
+      if(isText) return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+      const na = parseFloat(va) || 0;
+      const nb = parseFloat(vb) || 0;
+      return dir === 'asc' ? na - nb : nb - na;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+  }
+
+  const thead = document.querySelector('#inv-table thead');
+  if(thead){
+    thead.addEventListener('click', e => {
+      const th = e.target.closest('th.sortable');
+      if(!th) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openSortMenu(th);
+    });
+    thead.addEventListener('contextmenu', e => {
+      const th = e.target.closest('th.sortable');
+      if(!th) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openSortMenu(th);
+    });
+  }
+
+  function ensureMenu(){
+    let m = document.getElementById('inv-sort-menu');
+    if(m) return m;
+    m = document.createElement('div');
+    m.id = 'inv-sort-menu';
+    m.className = 'inv-sort-menu';
+    m.innerHTML = `
+      <div class="item" data-act="asc">По возрастанию / А→Я</div>
+      <div class="item" data-act="desc">По убыванию / Я→А</div>
+      <div class="item" data-act="reset">Сбросить сортировку</div>
+    `;
+    document.body.appendChild(m);
+    document.addEventListener('click', e => { if(!m.contains(e.target)) m.classList.remove('show'); });
+    document.addEventListener('keydown', e => { if(e.key === 'Escape') m.classList.remove('show'); });
+    return m;
+  }
+
+  function openSortMenu(th){
+    const key = th.getAttribute('data-key');
+    if(!key) return;
+    const m = ensureMenu();
+    const r = th.getBoundingClientRect();
+    m.style.left = `${r.left}px`;
+    m.style.top = `${r.bottom + 6}px`;
+    m.classList.add('show');
+    Array.from(m.querySelectorAll('.item')).forEach(item => {
+      item.onclick = () => {
+        const act = item.getAttribute('data-act');
+        const all = th.parentElement?.parentElement?.querySelectorAll('th.sortable');
+        if(all) all.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+        if(act === 'reset'){
+          if(invTbody){
+            Array.from(invTbody.querySelectorAll('tr'))
+              .sort((a, b) => (parseInt(a.dataset.index || '0', 10) - parseInt(b.dataset.index || '0', 10)))
+              .forEach(row => invTbody.appendChild(row));
+          }
+        } else if(act === 'asc' || act === 'desc'){
+          th.classList.add(act === 'asc' ? 'sort-asc' : 'sort-desc');
+          sortBy(key, act);
+        }
+        m.classList.remove('show');
+      };
+    });
+  }
+
+  document.getElementById('save-btn')?.addEventListener('click', async e => {
+    e.preventDefault();
+    const ok = confirm('Зафиксировать результаты инвентаризации?');
+    if(!ok) return;
+    const rows = [];
+    document.querySelectorAll('#inv-table tbody tr').forEach(tr => {
+      const id = parseInt(tr.getAttribute('data-id') || '0', 10) || 0;
+      if(!id) return;
+      const fridge = toInt(tr.querySelector('input.fridge')?.value);
+      const store = toInt(tr.querySelector('input.store')?.value);
+      if(fridge || store) rows.push({ product_id: id, fridge, store });
+    });
+    if(!rows.length){
+      alert('Нет данных для сохранения');
+      return;
+    }
+    try{
+      const res = await fetch('{{ url_for('inventory.save') }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows })
+      });
+      const data = await res.json();
+      if(data?.ok){
+        alert('Сохранено записей: ' + data.saved);
+      } else {
+        alert('Не удалось сохранить изменения');
+      }
+    } catch(err){
+      alert('Ошибка: не удалось сохранить изменения');
+    }
+  });
+})();
+</script>
+{% endblock %}
+
+

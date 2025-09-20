@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Товары для долгов — COLIZEUM{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/admin.css') }}">{% endblock %}
+{% block content %}
+<div class="adm container py-3">
+  <h1 class="cz-h1">Товары для долгов</h1>
+
+  <div class="cz-fieldset mb-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label mb-0">Клуб</label>
+        <input class="form-control cz-input" value="{{ club_name }}" disabled>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label mb-0">Поиск</label>
+        <form method="get" class="d-flex gap-2">
+          <input type="text" name="q" value="{{ q or '' }}" class="form-control cz-input" placeholder="Название или штрихкод">
+          <button class="btn cz-btn">Искать</button>
+        </form>
+      </div>
+      <div class="col-md-3 text-end">
+        {% if can_import %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.debts_products') }}">В админку</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="cz-fieldset">
+    <div class="cz-legend">Номенклатура</div>
+    <div class="cz-table-wrap">
+      <table class="cz-table-grid">
+        <thead>
+          <tr>
+            <th>Наименование</th>
+            <th class="cz-td-right">Себестоимость</th>
+            <th>Штрихкоды</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in items %}
+          <tr>
+            <td class="cz-nowrap">{{ it.name }}</td>
+            <td class="cz-td-right cz-nowrap">{{ it.purchase_price|fmt }}</td>
+            <td>
+              {% for bc in (it.barcodes or '').split(', ') %}
+                {% if bc %}<span class="bc-pill">{{ bc }}</span>{% endif %}
+              {% endfor %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="text-muted">Нет данных.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

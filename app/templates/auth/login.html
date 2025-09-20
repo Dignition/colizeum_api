@@ -1,0 +1,23 @@
+
+{% extends "base.html" %}
+{% block title %}Войти · COLIZEUM{% endblock %}
+{% block content %}
+<div class="container d-flex justify-content-center align-items-center" style="min-height:60vh">
+  <div class="card cz-card" style="max-width:420px; width:100%">
+    <div class="card-body">
+      <h1 class="cz-h1 mb-3">Вход</h1>
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label">Логин</label>
+          <input type="text" name="username" class="form-control cz-input" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Пароль</label>
+          <input type="password" name="password" class="form-control cz-input" required>
+        </div>
+        <button class="btn cz-btn w-100" type="submit">Войти</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+﻿{% extends "base.html" %}
+{% block title %}Импорт товаров для долгов · COLIZEUM{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/admin.css') }}">{% endblock %}
+{% block content %}
+<div class="adm container py-3">
+  <h3 class="adm-title">Импорт товаров для модуля долгов</h3>
+
+  <form method="post" enctype="multipart/form-data" class="adm-card p-3">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label">Клуб</label>
+        <select name="club_id" class="form-select" required>
+          {% for c in clubs %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Файл XLSX или CSV</label>
+        <input type="file" name="file" class="form-control" accept=".xlsx,.csv" required>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button class="btn btn-warning w-100">Импортировать</button>
+      </div>
+    </div>
+    <div class="form-text mt-2">
+      XLSX: первая строка — заголовок (игнорируется), вторая — названия колонок. Нужны: «Название», «Цена закупки», «Артикулы», «Категория». Строки с категорией «-» пропускаются. В «Артикулы» может быть несколько кодов, разделённых пробелами/знаками.
+    </div>
+  </form>
+</div>
+{% endblock %}

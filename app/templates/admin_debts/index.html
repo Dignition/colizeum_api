@@ -1,0 +1,108 @@
+﻿{% extends "base.html" %}
+{% block title %}Долги администраторов · COLIZEUM{% endblock %}
+{% block content %}
+<div class="container py-3">
+  <h1 class="cz-h1">Долги администраторов</h1>
+  <div class="d-flex gap-2 mt-2">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('debtops.products') }}">Товары клуба</a>
+  </div>
+  <div class="d-flex gap-2 mt-2">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('debtops.index') }}">Операции</a>
+  </div>
+
+  <div class="d-flex align-items-center gap-3 mt-2">
+    <form method="get" class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0">Статус:</label>
+      <select name="status" class="form-select form-select-sm cz-input" onchange="this.form.submit()">
+        <option value="" {{ 'selected' if not cur_status else '' }}>Все</option>
+        <option value="open" {{ 'selected' if cur_status=='open' else '' }}>Открыт</option>
+        <option value="settled" {{ 'selected' if cur_status=='settled' else '' }}>Закрыт</option>
+        <option value="written_off" {{ 'selected' if cur_status=='written_off' else '' }}>Списан</option>
+      </select>
+    </form>
+  </div>
+
+  {% if can_manage %}
+  <div class="cz-fieldset mt-3">
+    <div class="cz-legend">Новый долг</div>
+    <form method="post" action="{{ url_for('admin_debts.create') }}" class="row g-2">
+      <div class="col-md-3">
+        <label class="form-label">Сотрудник</label>
+        <select name="user_id" class="form-select cz-input" required>
+          <option value="">— выбрать —</option>
+          {% for u in users %}
+            <option value="{{ u.id }}">{{ u.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Сумма</label>
+        <input name="amount" class="form-control cz-input" inputmode="decimal" step="0.01" placeholder="0" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Дата</label>
+        <input name="created_on" type="date" class="form-control cz-input">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Причина</label>
+        <input name="reason" class="form-control cz-input" placeholder="Комментарий">
+      </div>
+      <div class="col-md-1 d-flex align-items-end">
+        <button class="btn cz-btn w-100">Добавить</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="table-responsive mt-3">
+    <table class="table table-sm align-middle cz-table">
+      <thead>
+        <tr>
+          <th style="width:110px">Дата</th>
+          <th>Сотрудник</th>
+          <th class="text-end" style="width:120px">Сумма</th>
+          <th>Причина</th>
+          <th style="width:140px">Статус</th>
+          {% if can_manage %}<th class="text-end" style="width:240px">Действия</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for d, u in items %}
+        <tr>
+          <td>{{ d.created_on|fmt_date }}</td>
+          <td>{{ u.full_name or u.username }}</td>
+          <td class="text-end">{{ d.amount|fmt }}</td>
+          <td>{{ d.reason or '' }}</td>
+          <td>
+            {% if d.status=='open' %}<span class="badge bg-warning text-dark">Открыт</span>{% endif %}
+            {% if d.status=='settled' %}<span class="badge bg-success">Закрыт</span>{% endif %}
+            {% if d.status=='written_off' %}<span class="badge bg-secondary">Списан</span>{% endif %}
+          </td>
+          {% if can_manage %}
+          <td class="text-end">
+            <form method="post" action="{{ url_for('admin_debts.set_status', debt_id=d.id) }}" class="d-inline">
+              <input type="hidden" name="status" value="settled">
+              <button class="btn btn-sm btn-outline-success">Закрыть</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_debts.set_status', debt_id=d.id) }}" class="d-inline">
+              <input type="hidden" name="status" value="written_off">
+              <button class="btn btn-sm btn-outline-secondary">Списать</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_debts.set_status', debt_id=d.id) }}" class="d-inline">
+              <input type="hidden" name="status" value="open">
+              <button class="btn btn-sm btn-outline-warning">Открыть</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_debts.delete', debt_id=d.id) }}" class="d-inline" onsubmit="return confirm('Удалить запись?')">
+              <button class="btn btn-sm btn-outline-danger">Удалить</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted">Записей нет.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

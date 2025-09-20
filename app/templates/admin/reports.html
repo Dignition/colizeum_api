@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Администрирование · Отчёты кассира{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/admin.css') }}">
+{% endblock %}
+{% block content %}
+
+{% macro u_name(r) -%}
+{%- set u = r.user if r else None -%}
+{%- if u -%}
+  {%- if u.last_name or u.first_name -%}
+    {{ (u.last_name or '') ~ (' ' if u.last_name and u.first_name else '') ~ (u.first_name or '') }}
+  {%- elif u.name -%}{{ u.name }}
+  {%- elif u.username -%}{{ u.username }}
+  {%- elif u.email -%}{{ u.email }}
+  {%- else -%}—
+  {%- endif -%}
+{%- else -%}—
+{%- endif -%}
+{%- endmacro %}
+
+<div class="container-fluid py-3 adm-skin">
+  <div class="d-flex justify-content-between align-items-end mb-2">
+    <h1 class="title m-0">Админ · Отчёты кассира</h1>
+    <form method="get" class="toolbar">
+      <div>
+        <label class="form-label m-0 small muted">Месяц</label>
+        <input type="month" name="m" class="form-control cz-input" value="{{ month_str }}">
+      </div>
+      <button class="btn" type="submit">Показать</button>
+      <a class="btn sec" href="{{ url_for('admin.cashier_admin', m=month_str, export='csv') }}">Экспорт CSV</a>
+    </form>
+  </div>
+
+  <div class="panel table-wrap mt-2">
+    <table>
+      <thead>
+        <tr>
+          <th class="w-min">Дата</th>
+          <th class="w-min">Смена</th>
+          <th>Администратор</th>
+          <th class="w-min">Бар</th>
+          <th class="w-min">Нал</th>
+          <th class="w-min">Расширенная</th>
+          <th class="w-min">СБП</th>
+          <th class="w-min">CLS</th>
+          <th class="w-min">Эквайринг!</th>
+          <th class="w-min">Возврат нал</th>
+          <th class="w-min">Возврат безнал</th>
+          <th class="w-min">Остаток нал</th>
+          <th class="w-min">Действие</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in items %}
+        <tr>
+          <td class="w-min nowrap">{{ r.shift_date|fmt_date }}</td>
+          <td class="w-min nowrap">{{ 'День' if r.shift_type=='day' else 'Ночь' }}</td>
+          <td class="nowrap">{{ u_name(r) }}</td>
+          <td class="w-min num">{{ r.bar|fmt }}</td>
+          <td class="w-min num">{{ r.cash|fmt }}</td>
+          <td class="w-min num">{{ r.extended|fmt }}</td>
+          <td class="w-min num">{{ r.sbp_acq|fmt }}</td>
+          <td class="w-min num">{{ r.sbp_cls|fmt }}</td>
+          <td class="w-min num">{{ r.acquiring|fmt }}</td>
+          <td class="w-min num">{{ r.refund_cash|fmt }}</td>
+          <td class="w-min num">{{ r.refund_noncash|fmt }}</td>
+          <td class="w-min num">{{ r.cash_left|fmt }}</td>
+          <td class="w-min nowrap">
+            <a class="btn" href="{{ url_for('cashier.view', report_id=r.id) }}">Открыть</a>
+            <a class="btn sec" href="{{ url_for('cashier.edit', report_id=r.id) }}">Редактировать</a>
+            <form method="post" action="{{ url_for('admin.cashier_action', rid=r.id, action='delete') }}" class="d-inline" onsubmit="return confirm('Удалить отчёт?')">
+              <button class="btn sec" type="submit">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="13" class="text-center muted">Нет данных</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

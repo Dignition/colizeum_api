@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}График · COLIZEUM{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/schedule.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 sched" id="sched-root" data-edit-all="{{ 1 if editable_all else 0 }}" data-edit-self="{{ 1 if editable_self_only else 0 }}" data-my="{{ my_uid }}">
+  <div class="d-flex justify-content-between align-items-end">
+    <div>
+      <h1 class="title m-0">График</h1>
+      <div class="muted small">День: 10:00–22:00 · Ночь: 22:00–10:00. Данные из отчётов кассира.</div>
+    </div>
+    <form method="get" class="toolbar">
+      <div>
+        <label class="form-label m-0 small muted">Месяц</label>
+        <input type="month" name="m" class="form-control cz-input" value="{{ month_str }}">
+      </div>
+      <button class="btn" type="submit">Показать</button>
+    </form>
+  </div>
+
+  {% macro fio(u) -%}
+    {%- set s = ((u.last_name or '') ~ (' ' if (u.last_name and u.first_name) else '') ~ (u.first_name or ''))|trim -%}
+    {{ s or u.full_name or u.name or u.username or u.email or '—' }}
+  {%- endmacro %}
+  {% set dows = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}
+
+  <div class="panel table-wrap mt-3">
+    <div class="panel-h">Сотрудники</div>
+    <table class="sched-table">
+      <thead>
+        <tr>
+          <th class="sticky name" rowspan="2">Сотрудник</th>
+          {% for d in days %}
+            <th class="date {% if loop.index0>0 and d.weekday()==0 %}wk{% endif %}" colspan="3">
+              {{ "%02d.%02d"|format(d.day, d.month) }}
+              <div class="dow">{{ dows[d.weekday()] }}</div>
+            </th>
+          {% endfor %}
+          <th class="totals" rowspan="2">Итого часов</th>
+          <th class="totals" rowspan="2">Всего смен</th>
+        </tr>
+        <tr>
+          {% for d in days %}
+            {% set wk = ' wk' if (loop.index0>0 and d.weekday()==0) else '' %}
+            <th class="sub{{ wk }}">Приход</th>
+            <th class="sub{{ wk }}">Уход</th>
+            <th class="sub{{ wk }}">Часы</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in staff %}
+        <tr class="row-person" data-user="{{ u.id }}">
+          <td class="sticky name">{{ fio(u) }}</td>
+          {% for d in days %}
+            {% set k = (u.id|string) ~ ':' ~ d.isoformat() %}
+            {% set wk = ' wk' if (loop.index0>0 and d.weekday()==0) else '' %}
+            {% set item = prefill.get(k) %}
+            {% set start_val = (item.start if item else 'В') %}
+            {% set end_val   = (item.end   if item else 'В') %}
+            {# robust kind detection independent of exact times #}
+            {% set st = (item.start if item else '') %}
+            {% set en = (item.end   if item else '') %}
+            {% set st_h = (st[:2]|int) if st else 0 %}
+            {% set en_h = (en[:2]|int) if en else 0 %}
+            {% set kind_val = (
+              'both' if (item and item.both)
+              else ('day' if (st and en and st_h <= 12 and en_h >= 20)
+                         else ('night' if (st and en and (st_h >= 20 or en_h <= 12))
+                         else 'off'))
+            ) %}
+            <td class="cell {{ wk }} kind-{{ kind_val }}">
+              <input class="form-control cz-input in-time" value="{{ start_val }}" placeholder="ЧЧ:ММ или В" data-both="{{ 1 if kind_val=='both' else 0 }}">
+            </td>
+            <td class="cell {{ wk }} kind-{{ kind_val }}">
+              <input class="form-control cz-input out-time" value="{{ end_val   }}" placeholder="ЧЧ:ММ или В" data-both="{{ 1 if kind_val=='both' else 0 }}">
+            </td>
+            <td class="cell {{ wk }} cell-hours">
+              <input class="form-control cz-input hours" readonly placeholder="00:00">
+            </td>
+          {% endfor %}
+          <td class="totals num row-hours">00:00</td>
+          <td class="totals num row-shifts">0</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ 2 + days|length * 3 }}" class="text-center muted">Нет данных</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="legend mt-2 muted">
+    Цвета: День — жёлтый, Ночь — синий, Сутки — оранжевый. «В» — выходной. Ночь и равные времена считаются через 24:00. Д+Н: 24:00 ± сдвиг.
+  </div>
+</div>
+{% endblock %}

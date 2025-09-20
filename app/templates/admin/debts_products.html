@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Товары (штрихкоды) — COLIZEUM{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/admin.css') }}">{% endblock %}
+{% block content %}
+<div class="adm container py-3">
+  <h3 class="adm-title">Товары по долгам</h3>
+
+  <div class="cz-fieldset mb-3">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label mb-0">Клуб</label>
+        <form method="get" class="d-flex gap-2">
+          <select name="club_id" class="form-select form-select-sm cz-input" onchange="this.form.submit()">
+            <option value="" {{ 'selected' if not club_id else '' }}>- Выберите клуб -</option>
+            {% for c in clubs %}
+              <option value="{{ c.id }}" {{ 'selected' if club_id and c.id==club_id else '' }}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn cz-btn" type="submit">Обновить</button>
+        </form>
+      </div>
+      <div class="col-md-7 text-end">
+        <label class="form-label mb-0">Загрузка XLSX/CSV</label>
+        <form method="post" enctype="multipart/form-data" class="d-flex gap-2 justify-content-end">
+          <input type="hidden" name="op" value="import">
+          <input type="file" name="file" class="form-control cz-input" accept=".xlsx,.csv" required>
+          <button class="btn cz-btn" type="submit">Загрузить</button>
+        </form>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12 text-end">
+        <div class="form-text mt-1">Загрузите файл из web-админки, выгрузив отчёт в «Товары и продажи» → «Учёт товаров и услуг».</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cz-fieldset">
+    <div class="cz-legend">Номенклатура</div>
+    <div class="cz-table-wrap">
+      <table class="cz-table-grid">
+        <thead>
+          <tr>
+            <th>Наименование</th>
+            <th class="cz-td-right cz-nowrap">Себестоимость</th>
+            <th>Штрихкоды</th>
+            <th class="cz-td-right cz-nowrap">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in items %}
+          <tr id="row-{{ it.id }}">
+            <td class="cz-nowrap">{{ it.name }}</td>
+            <td class="cz-td-right cz-nowrap">{{ it.purchase_price|fmt }}</td>
+            <td>
+              {% for bc in (it.barcodes or '').split(', ') %}
+                {% if bc %}<span class="bc-pill">{{ bc }}</span>{% endif %}
+              {% endfor %}
+            </td>
+            <td class="cz-td-right cz-nowrap">
+              <a class="btn btn-sm btn-outline-secondary" href="#" data-edit-id="{{ it.id }}">Изменить</a>
+            </td>
+          </tr>
+          <tr id="edit-{{ it.id }}" class="edit-row {% if not edit_id or edit_id != it.id %}d-none{% endif %}">
+            <td colspan="4">
+              <form method="post" class="row g-2">
+                <input type="hidden" name="op" value="update">
+                <input type="hidden" name="product_id" value="{{ it.id }}">
+                <div class="col-lg-4">
+                  <label class="form-label mb-0">Наименование</label>
+                  <input name="name" class="form-control cz-input" value="{{ it.name }}">
+                </div>
+                <div class="col-lg-2">
+                  <label class="form-label mb-0">Себестоимость</label>
+                  <input name="purchase_price" class="form-control cz-input" inputmode="decimal" step="0.01" value="{{ it.purchase_price }}">
+                </div>
+                <div class="col-lg-4">
+                  <label class="form-label mb-0">Штрихкоды (через пробел/запятую)</label>
+                  <input name="barcodes" class="form-control cz-input" value="{{ it.barcodes or '' }}">
+                </div>
+                <div class="col-lg-2 d-flex align-items-end justify-content-end gap-2">
+                  <button type="button" class="btn btn-secondary" data-cancel-edit="{{ it.id }}">Отмена</button>
+                  <button class="btn cz-btn" type="submit">Сохранить</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-muted">Нет данных.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const table = document.querySelector('.cz-table-grid');
+  if(!table) return;
+  function openEdit(id){
+    document.querySelectorAll('tr.edit-row').forEach(tr=>tr.classList.add('d-none'));
+    const row = document.getElementById('edit-'+id);
+    if(row){ row.classList.remove('d-none'); row.scrollIntoView({behavior:'smooth', block:'center'}); }
+  }
+  table.addEventListener('click', function(e){
+    const a = e.target.closest('a[data-edit-id]');
+    if(!a) return;
+    e.preventDefault();
+    const id = a.getAttribute('data-edit-id');
+    openEdit(id);
+    try{ history.replaceState(null, '', '#row-'+id); }catch(err){}
+  });
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('button[data-cancel-edit]');
+    if(!btn) return;
+    const id = btn.getAttribute('data-cancel-edit');
+    const row = document.getElementById('edit-'+id);
+    if(row) row.classList.add('d-none');
+  });
+});
+</script>
+{% endblock %}

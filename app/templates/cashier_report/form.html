@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Редактировать отчёт' if item else 'Новый отчёт' }} · COLIZEUM{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/cashier.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set prefill_date = request.args.get('date') or (item.shift_date if item else today) %}
+{% set prefill_shift = request.args.get('shift') or (item.shift_type if item else 'day') %}
+
+<div class="container py-3">
+  <h1 class="cz-h1">{{ 'Редактировать отчёт' if item else 'Новый отчёт' }}</h1>
+
+  <form method="post" id="cr-form" class="mt-3">
+    <div class="row g-3">
+      <div class="col-sm-3">
+        <label class="form-label">Дата смены</label>
+        <input type="date" name="shift_date" class="form-control cz-input" value="{{ (prefill_date)|string }}">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label">Смена</label>
+        <select name="shift_type" class="form-select cz-input">
+          <option value="day"  {{ 'selected' if prefill_shift=='day' else '' }}>День</option>
+          <option value="night"{{ 'selected' if prefill_shift=='night' else '' }}>Ночь</option>
+        </select>
+      </div>
+      <div class="col-sm-6">
+        <label class="form-label">Администратор</label>
+        <input class="form-control cz-input" value="{{ current_user.full_name or current_user.username }}" disabled>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-2">
+      <div class="col-lg-4">
+        <div class="cz-fieldset">
+          <div class="cz-legend">Продажи</div>
+
+          <label class="form-label mt-1">Бар</label>
+          <input name="bar" class="form-control cz-input calc" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.bar or '') }}" placeholder="0">
+          <div class="form-text cz-muted-text">Бар — вводится с CLS.</div>
+
+          <label class="form-label mt-2">Нал</label>
+          <input name="cash" class="form-control cz-input calc" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.cash or '') }}" placeholder="0">
+          <div class="form-text cz-muted-text">Строго по X/Z-отчёту.</div>
+
+          <label class="form-label mt-2">Расширенная оплата</label>
+          <input name="extended" class="form-control cz-input calc" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.extended or '') }}" placeholder="0">
+          <div class="form-text cz-muted-text">Строго по X/Z-отчёту.</div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="cz-fieldset">
+          <div class="cz-legend">Безнал (разбивка расширенной)</div>
+
+          <label class="form-label mt-1">СБП эквайринг</label>
+          <input name="sbp_acq" class="form-control cz-input calc" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.sbp_acq or '') }}" placeholder="0">
+          <div class="form-text cz-muted-text">Строго по X/Z-отчёту.</div>
+
+          <label class="form-label mt-2">CLS (Онлайн платежи)</label>
+          <input name="sbp_cls" class="form-control cz-input calc" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.sbp_cls or '') }}" placeholder="0">
+          <div class="form-text cz-muted-text">поле "Сумма онлайн-платежей" с CLS</div>
+
+          <label class="form-label mt-2">Эквайринг!</label>
+          <input name="acquiring" class="form-control cz-input calc" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.acquiring or '') }}" placeholder="0">
+          <div class="form-text cz-muted-text">Строго по X/Z-отчёту.</div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="cz-fieldset">
+          <div class="cz-legend">Возвраты и прочее</div>
+
+          <label class="form-label mt-1">Возврат нал</label>
+          <input name="refund_cash" class="form-control cz-input" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.refund_cash or '') }}" placeholder="0">
+
+          <label class="form-label mt-2">Возврат безнал</label>
+          <input name="refund_noncash" class="form-control cz-input" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.refund_noncash or '') }}" placeholder="0">
+
+          {% if current_user.role == 'superadmin' %}
+          <label class="form-label mt-2">Инкассация</label>
+          <input name="encashment" class="form-control cz-input" inputmode="decimal" step="0.01"
+                 value="{{ '' if not item else (item.encashment or '') }}" placeholder="0">
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="cz-fieldset mt-3">
+      <div class="cz-legend">Расходы</div>
+      <div class="form-text cz-muted-text mb-2">Траты за смену.</div>
+
+      <input type="hidden" name="acquiring_fee" id="expense_total"
+             value="{{ '' if not item else (item.acquiring_fee or 0) }}">
+      <input type="hidden" name="expenses_json" id="expenses_json"
+             value='{{ (expenses_list or [])|tojson }}'>
+
+      <div id="expenses_list" class="vstack gap-2"></div>
+
+      <div class="d-flex align-items-center gap-3 mt-2">
+        <button type="button" id="add_expense" class="btn cz-btn">Добавить расход</button>
+        <div class="cz-muted-text">Итого: <b id="expense_sum_view">0</b></div>
+      </div>
+    </div>
+
+    <div class="cz-fieldset mt-3">
+      <div class="cz-legend">Онлайн-проверки</div>
+      <div class="row g-2">
+        <div class="col-md-3">Z-отчёт: <b id="kpi_z">0</b></div>
+        <div class="col-md-4">Равно?: <b id="kpi_equal">ДА</b></div>
+        <div class="col-md-5 cz-muted-text">«Да» если Расширенная оплата = СБП эквайринг + CLS + Эквайринг!</div>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-md-3">Положить в конверт:</div>
+        <div class="col-md-4"><b id="env_amount">0</b></div>
+        <div class="col-md-5 cz-muted-text">Нал − Возврат нал − Итого расходов</div>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-2">
+      <div class="col-12">
+        <label class="form-label">Примечание</label>
+        <input name="note" class="form-control cz-input" placeholder="Комментарий к смене"
+               value="{{ '' if not item else (item.note or '') }}">
+      </div>
+    </div>
+
+    <input type="hidden" name="confirm_zero" id="confirm_zero" value="0">
+
+    <div class="d-flex gap-2 mt-3">
+      <a class="btn btn-secondary" href="{{ url_for('cashier.index') }}">Назад</a>
+      <button class="btn cz-btn" type="submit">Сохранить</button>
+    </div>
+  </form>
+</div>
+
+<!-- Модалка проверки -->
+<div id="cz-modal" class="cz-modal" hidden>
+  <div class="cz-modal__dialog">
+    <div class="cz-modal__head">Проверка отчёта</div>
+    <div class="cz-modal__body" id="cz-modal-body"></div>
+    <div class="cz-modal__foot">
+      <button type="button" class="btn btn-secondary" id="cz-modal-cancel">Отмена</button>
+      <button type="button" class="btn cz-btn" id="cz-modal-confirm" disabled>Подтвердить и сохранить</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

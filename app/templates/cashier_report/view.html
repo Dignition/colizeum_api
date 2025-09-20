@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Отчёт кассира · COLIZEUM{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/cashier.css') }}">
+{% endblock %}
+
+{% block content %}
+{% macro fio_user(u) -%}
+{%- if u -%}
+  {%- set ln = u.last_name or '' -%}
+  {%- set fn = u.first_name or '' -%}
+  {%- set mn = (u.middle_name or u.patronymic or '') -%}
+  {%- set full1 = (ln ~ (' ' if ln and fn else '') ~ fn ~ (' ' if (ln or fn) and mn else '') ~ mn).strip() -%}
+  {%- if full1 %}{{ full1 }}
+  {%- elif u.full_name %}{{ u.full_name }}
+  {%- elif u.name %}{{ u.name }}
+  {%- elif u.username %}{{ u.username }}
+  {%- elif u.email %}{{ u.email }}
+  {%- else %}—
+  {%- endif -%}
+{%- else -%}—
+{%- endif -%}
+{%- endmacro %}
+
+<div class="container py-3 view-wrap">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="cz-h1 m-0">Отчёт кассира</h1>
+    <div class="d-flex gap-2">
+      <a class="btn cz-btn" href="{{ url_for('cashier.index') }}">Назад</a>
+      {% if current_user.role == 'superadmin' %}
+        <a class="btn cz-btn" href="{{ url_for('cashier.edit', report_id=r.id) }}">Редактировать</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="cz-fieldset mb-3">
+    <div class="cz-legend">Смена</div>
+    <div class="kv">
+      <div><b>Дата</b></div><div>{{ r.shift_date|fmt_date }}</div>
+      <div><b>Тип</b></div><div>{{ 'День' if r.shift_type=='day' else 'Ночь' }}</div>
+      <div><b>Администратор</b></div><div>{{ fio_user(r.user) }}</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="cz-fieldset h-100">
+        <div class="cz-legend">Продажи</div>
+        <div class="kv">
+          <div><b>Бар</b></div><div class="num">{{ r.bar|fmt }}</div>
+          <div><b>Нал</b></div><div class="num">{{ r.cash|fmt }}</div>
+          <div><b>Расширенная оплата</b></div><div class="num">{{ r.extended|fmt }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="cz-fieldset h-100">
+        <div class="cz-legend">Безнал (разбивка расширенной)</div>
+        <div class="kv">
+          <div><b>СБП эквайринг</b></div><div class="num">{{ r.sbp_acq|fmt }}</div>
+          <div><b>CLS</b></div><div class="num">{{ r.sbp_cls|fmt }}</div>
+          <div><b>Эквайринг!</b></div><div class="num">{{ r.acquiring|fmt }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="cz-fieldset h-100">
+        <div class="cz-legend">Возвраты</div>
+        <div class="kv">
+          <div><b>Возврат нал</b></div><div class="num">{{ r.refund_cash|fmt }}</div>
+          <div><b>Возврат безнал</b></div><div class="num">{{ r.refund_noncash|fmt }}</div>
+          {% if current_user.role == 'superadmin' %}
+            <div><b>Инкассация</b></div><div class="num">{{ r.encashment|fmt }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cz-fieldset mt-3">
+    <div class="cz-legend">Расходы</div>
+    {% if expenses_list %}
+      <div class="table-responsive">
+        <table class="cz-table">
+          <thead><tr><th style="width:70%">На что потрачено</th><th class="num" style="width:30%">Сумма</th></tr></thead>
+          <tbody>
+          {% for x in expenses_list %}
+            <tr>
+              <td>{{ x.note or '—' }}</td>
+              <td class="num">{{ x.amount|fmt }}</td>
+            </tr>
+          {% endfor %}
+          <tr>
+            <td class="text-end"><b>Итого</b></td>
+            <td class="num"><b>{{ r.acquiring_fee|fmt }}</b></td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      Нет расходов
+    {% endif %}
+  </div>
+
+  {% set z = (r.cash or 0) + (r.extended or 0) %}
+  {% set diff = (r.extended or 0) - ((r.sbp_acq or 0) + (r.sbp_cls or 0) + (r.acquiring or 0)) %}
+  <div class="cz-fieldset mt-3">
+    <div class="cz-legend">Онлайн-проверки</div>
+    <div class="row g-2">
+      <div class="col-md-3">Z-отчёт: <b>{{ z|fmt }}</b></div>
+      <div class="col-md-4">
+        Равно?:
+        {% if diff|abs < 0.01 %}
+          <b class="kpi-ok">ДА</b>
+        {% else %}
+          <b class="kpi-bad">{{ diff|fmt }}</b>
+        {% endif %}
+      </div>
+      <div class="col-md-5 cz-muted-text">«Да» если Расширенная оплата = СБП эквайринг + CLS + Эквайринг!</div>
+    </div>
+    <div class="row g-2 mt-1">
+      {% set env = (r.cash or 0) - (r.refund_cash or 0) - (r.acquiring_fee or 0) %}
+      <div class="col-md-3">Положить в конверт:</div>
+      <div class="col-md-4"><b>{{ env|fmt }}</b></div>
+      <div class="col-md-5 cz-muted-text">Нал − Возврат нал − Итого расходов</div>
+    </div>
+  </div>
+
+  <div class="cz-fieldset mt-3">
+    <div class="cz-legend">Примечание</div>
+    {{ r.note or '—' }}
+  </div>
+</div>
+{% endblock %}

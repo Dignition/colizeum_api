@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Доступы по клубам · Администрирование{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/admin.css') }}">
+<style>
+  .adm .form-text{color:#9fb4d0;opacity:.95}
+  .adm .text-muted{color:#9fb4d0!important;opacity:.8}
+</style>
+{% endblock %}
+{% block content %}
+<div class="adm container py-3">
+  <h3 class="adm-title">Доступы по клубам</h3>
+  {% include "admin/_clusters.html" %}
+
+  <div class="adm-card p-3 mb-3">
+    <label class="form-label">Поиск по клубам</label>
+    <input id="clubFilter" class="form-control" placeholder="Начните вводить название клуба">
+  </div>
+
+  {% for c in clubs %}
+  <div class="adm-card p-3 mb-3 club-block" data-name="{{ c.name | lower }}">
+    <h5 style="color:#ffe379;margin:0 0 8px 0">{{ c.name }}</h5>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="adm-sec-head" style="margin-bottom:4px">Собственники</div>
+        <div class="table-responsive adm-table-wrap">
+          <table class="table table-sm align-middle adm-table">
+            <thead><tr><th>Логин</th><th>ФИО</th><th class="text-end">Действие</th></tr></thead>
+            <tbody>
+              {% for m in (by_club.get(c.id, {}).get('owner', [])) %}
+              <tr>
+                <td>{{ m.username }}</td>
+                <td>{{ m.fio or '' }}</td>
+                <td class="text-end">
+                  <form method="post" class="d-inline">
+                    <input type="hidden" name="op" value="del_member">
+                    <input type="hidden" name="id" value="{{ m.id }}">
+                    <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Удалить доступ?')">Удалить</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-2">
+          <div class="form-label">Добавить собственника</div>
+          <form method="post" class="d-flex gap-2">
+            <input type="hidden" name="op" value="add_owner">
+            <input type="hidden" name="club_id" value="{{ c.id }}">
+            <select name="user_id" class="form-select">
+              {% for u in add_choices[c.id]['owner'] %}
+                <option value="{{ u.id }}">{{ u.username }}{% if u.fio %} — {{ u.fio }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-primary">Добавить</button>
+          </form>
+          <div class="form-text">
+            Показываются пользователи, которые уже собственники в других клубах
+            или ещё не прикреплены ни к одному клубу.
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="adm-sec-head" style="margin-bottom:4px">Админы клуба</div>
+        <div class="table-responsive adm-table-wrap">
+          <table class="table table-sm align-middle adm-table">
+            <thead><tr><th>Логин</th><th>ФИО</th><th class="text-end">Действие</th></tr></thead>
+            <tbody>
+              {% for m in (by_club.get(c.id, {}).get('club_admin', [])) %}
+              <tr>
+                <td>{{ m.username }}</td>
+                <td>{{ m.fio or '' }}</td>
+                <td class="text-end">
+                  <form method="post" class="d-inline">
+                    <input type="hidden" name="op" value="del_member">
+                    <input type="hidden" name="id" value="{{ m.id }}">
+                    <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Удалить доступ?')">Удалить</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-2">
+          <div class="form-label">Добавить админа</div>
+          <form method="post" class="d-flex gap-2">
+            <input type="hidden" name="op" value="add_admin">
+            <input type="hidden" name="club_id" value="{{ c.id }}">
+            <select name="user_id" class="form-select">
+              {% for u in add_choices[c.id]['club_admin'] %}
+                <option value="{{ u.id }}">{{ u.username }}{% if u.fio %} — {{ u.fio }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-primary">Добавить</button>
+          </form>
+          <div class="form-text">
+            Показываются пользователи, которые уже админы в других клубах
+            или ещё не прикреплены ни к одному клубу.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+document.getElementById('clubFilter')?.addEventListener('input', function(){
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('.club-block').forEach(b=>{
+    const ok = !q || b.dataset.name.includes(q);
+    b.style.display = ok ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

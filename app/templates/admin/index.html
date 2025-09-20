@@ -1,0 +1,42 @@
+﻿{% extends "base.html" %}
+{% block title %}Админка{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/admin.css') }}">
+{% endblock %}
+{% block content %}
+
+<div class="adm container py-3">
+  <h3 class="adm-title">Админка</h3>
+
+  <div class="row g-3 mb-2">
+    <div class="col-lg-4">
+      <a class="adm-card" href="{{ url_for('admin_mgmt.clubs') }}">
+        <div class="adm-card-title">Клубы</div>
+        <div class="adm-card-desc">Список клубов, статусы, таймзоны</div>
+      </a>
+    </div>
+    <div class="col-lg-4">
+      <a class="adm-card" href="{{ url_for('admin_mgmt.memberships') }}">
+        <div class="adm-card-title">Членства в клубах</div>
+        <div class="adm-card-desc">Owner / Club Admin / Staff</div>
+      </a>
+    </div>
+    <div class="col-lg-4">
+      <a class="adm-card" href="{{ url_for('admin_mgmt.users') }}">
+        <div class="adm-card-title">Пользователи</div>
+        <div class="adm-card-desc">Аккаунты и базовые атрибуты</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-2">
+    <div class="col-lg-4">
+      <a class="adm-card" href="{{ url_for('admin.debts_products') }}">
+        <div class="adm-card-title">Долги · Товары по клубу</div>
+        <div class="adm-card-desc">Список товаров для выбранного клуба</div>
+      </a>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

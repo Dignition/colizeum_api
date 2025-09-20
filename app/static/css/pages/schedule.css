@@ -1,0 +1,61 @@
+/* COLIZEUM · Schedule */
+.sched{
+  --brand:#ffc400;--brand2:#ffe379;--bg:#10131b;
+  --line:#263149;--line-strong:#3b4a75;--hover:#202a43;
+  --fg:#f6e6a8;--muted:#c9bd86;
+  --day:#2b2b12; --day-in:#ffde6a;
+  --night:#13223b; --night-in:#6aa6ff;
+  --both:#3b2a12; --both-in:#ffb86a;
+  --hours:#1a1a1a; --hours-in:#9a9a9a;
+}
+.sched .title{color:var(--brand);font-weight:800}
+.sched .muted{color:var(--muted)}
+.sched .toolbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:end}
+.sched .btn{background:var(--brand);color:#111;border:0;border-radius:10px;padding:.45rem .8rem;font-weight:800}
+.sched .btn.sec{background:#222;color:#ddd;border:1px solid #333}
+
+/* контейнеры */
+.sched .panel{border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.15);box-shadow:0 0 0 1px rgba(255,255,255,.03) inset}
+.sched .panel-h{padding:.5rem .75rem;color:#ffe379;font-weight:800;border-bottom:1px solid var(--line)}
+.sched .table-wrap{overflow-x:auto;padding:.4rem}
+
+/* таблица */
+.sched-table{width:max-content;max-width:100%;border-collapse:separate;border-spacing:0;color:var(--fg);margin:0 auto}
+.sched-table th,.sched-table td{border:1px solid var(--line);padding:.3rem .45rem;white-space:nowrap;vertical-align:middle}
+.sched-table thead th{background:linear-gradient(180deg,#1a2132,#151c2b);font-weight:800;position:sticky;top:0;z-index:1;text-align:center}
+.sched-table thead th.date{font-size:.76rem;color:var(--brand2)}
+.sched-table thead th.date .dow{font-size:.68rem;color:#b9b39a;margin-top:2px}
+.sched-table thead th.sub{font-size:.66rem;color:#b9b39a}
+
+/* строки */
+.sched-table tbody tr:hover>td{background:var(--hover)}
+
+/* фиксированная левая колонка */
+.sched .sticky{position:sticky;left:0;background:#0e1424;z-index:2}
+.sched .name{min-width:220px;font-weight:700;color:#fff}
+
+/* ячейки */
+.sched .cell{min-width:92px;text-align:center}
+.sched .cell input{
+  height:32px;padding:.18rem .45rem;text-align:center;
+  font-size:.9rem;letter-spacing:.02em
+}
+
+/* цветовые режимы */
+.sched .cell.kind-day{background:var(--day)}
+.sched .cell.kind-day input{background:var(--day-in);color:#111}
+.sched .cell.kind-night{background:var(--night)}
+.sched .cell.kind-night input{background:var(--night-in);color:#0b1020}
+.sched .cell.kind-both{background:var(--both)}
+.sched .cell.kind-both input{background:var(--both-in);color:#111}
+
+/* часы — тёмно-серые */
+.sched .cell-hours{background:var(--hours)}
+.sched .cell-hours input{background:var(--hours-in);color:#111;cursor:default}
+
+/* итоги */
+.sched .totals{min-width:120px}
+.num{text-align:right;color:#ffe06a}
+
+/* разделители недель */
+.wk{border-left:2px solid var(--line-strong)!important}

@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}Отчёты кассира · COLIZEUM{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/cashier.css') }}">
+{% endblock %}
+
+{% block content %}
+{% macro fio(u) -%}
+  {%- if u -%}
+    {%- if u.last_name or u.first_name -%}
+      {{ (u.last_name or '') ~ (' ' if (u.last_name and u.first_name) else '') ~ (u.first_name or '') }}
+    {%- elif u.full_name -%}{{ u.full_name }}
+    {%- elif u.name -%}{{ u.name }}
+    {%- elif u.username -%}{{ u.username }}
+    {%- elif u.email -%}{{ u.email }}
+    {%- endif -%}
+  {%- else -%}—{%- endif -%}
+{%- endmacro %}
+
+{% macro n(v) -%}
+  {%- if v is not none -%}{{ '{:,.2f}'.format(v).replace(',', ' ').replace('.00','') }}{%- endif -%}
+{%- endmacro %}
+
+{% set wnames = ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'] %}
+
+<div class="cr container-fluid">
+  <div class="cr-toolbar">
+    <form method="get" class="d-flex align-items-end gap-2">
+      <input type="month" name="m" class="form-control cz-input month-input" value="{{ month_str }}" aria-label="Месяц">
+    </form>
+  </div>
+
+  {# аккумуляторы #}
+  {% set totals = namespace(z=0, game=0, bar=0, cash=0, ext=0, sbp=0, cls=0, acq=0, fee=0, rc=0, rn=0, cl=0, inc=0) %}
+  {% set full = namespace(count=0, sum_z=0) %}
+
+  <div class="wrap mt-1">
+    <table class="cashier-table">
+      <thead>
+        <tr>
+          <th class="sticky">Дата</th><th>Смена</th><th>Администратор</th>
+          <th>Z-отчёт</th><th>Игровое+PS</th><th>Бар</th><th>Нал</th><th>Расширенная оплата</th>
+          <th>СБП эквайринг</th><th>CLS</th><th>Эквайринг!</th><th>Расход</th>
+          <th>Возврат нал</th><th>Возврат безнал</th><th>Равно?</th><th>Остаток нал</th><th>Инкассация</th>
+          <th class="sticky">Действие</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for d in days %}
+        {% set r_day   = bykey.get((d,'day')) %}
+        {% set r_night = bykey.get((d,'night')) %}
+
+        {% set d_cash = r_day and r_day.cash or 0 %}
+        {% set d_ext  = r_day and r_day.extended or 0 %}
+        {% set d_bar  = r_day and r_day.bar or 0 %}
+        {% set d_sbp  = r_day and r_day.sbp_acq or 0 %}
+        {% set d_cls  = r_day and r_day.sbp_cls or 0 %}
+        {% set d_acq  = r_day and r_day.acquiring or 0 %}
+        {% set d_fee  = r_day and r_day.expense_total or 0 %}
+        {% set d_rc   = r_day and r_day.refund_cash or 0 %}
+        {% set d_rn   = r_day and r_day.refund_noncash or 0 %}
+        {% set d_z    = d_cash + d_ext %}
+        {% set d_ok   = (d_ext - (d_sbp + d_cls + d_acq))|abs < 0.01 %}
+        {% set d_cl   = d_cash - d_rc - d_fee %}
+        {% set d_inc  = r_day and r_day.encashment or 0 %}
+        {% set d_game = r_day and r_day.game_ps or 0 %}
+
+        {% set n_cash = r_night and r_night.cash or 0 %}
+        {% set n_ext  = r_night and r_night.extended or 0 %}
+        {% set n_bar  = r_night and r_night.bar or 0 %}
+        {% set n_sbp  = r_night and r_night.sbp_acq or 0 %}
+        {% set n_cls  = r_night and r_night.sbp_cls or 0 %}
+        {% set n_acq  = r_night and r_night.acquiring or 0 %}
+        {% set n_fee  = r_night and r_night.expense_total or 0 %}
+        {% set n_rc   = r_night and r_night.refund_cash or 0 %}
+        {% set n_rn   = r_night and r_night.refund_noncash or 0 %}
+        {% set n_z    = n_cash + n_ext %}
+        {% set n_ok   = (n_ext - (n_sbp + n_cls + n_acq))|abs < 0.01 %}
+        {% set n_cl   = n_cash - n_rc - n_fee %}
+        {% set n_inc  = r_night and r_night.encashment or 0 %}
+        {% set n_game = r_night and r_night.game_ps or 0 %}
+
+        {% set t_z    = d_z + n_z %}
+        {% set t_game = d_game + n_game %}
+        {% set t_bar  = d_bar + n_bar %}
+        {% set t_fee  = d_fee + n_fee %}
+        {% set t_rc   = d_rc + n_rc %}
+        {% set t_rn   = d_rn + n_rn %}
+        {% set t_ext  = d_ext + n_ext %}
+        {% set t_sbp  = d_sbp + n_sbp %}
+        {% set t_cls  = d_cls + n_cls %}
+        {% set t_acq  = d_acq + n_acq %}
+        {% set t_ok   = (t_ext - (t_sbp + t_cls + t_acq))|abs < 0.01 %}
+        {% set t_cl   = d_cl + n_cl %}
+        {% set t_inc  = d_inc + n_inc %}
+        {% set is_wkend = 1 if d.weekday() >= 5 else 0 %}
+
+        {% set totals.z    = totals.z    + t_z %}
+        {% set totals.game = totals.game + t_game %}
+        {% set totals.bar  = totals.bar  + t_bar %}
+        {% set totals.cash = totals.cash + d_cash + n_cash %}
+        {% set totals.ext  = totals.ext  + t_ext %}
+        {% set totals.sbp  = totals.sbp  + t_sbp %}
+        {% set totals.cls  = totals.cls  + t_cls %}
+        {% set totals.acq  = totals.acq  + t_acq %}
+        {% set totals.fee  = totals.fee  + t_fee %}
+        {% set totals.rc   = totals.rc   + t_rc %}
+        {% set totals.rn   = totals.rn   + t_rn %}
+        {% set totals.cl   = totals.cl   + t_cl %}
+        {% set totals.inc  = totals.inc  + t_inc %}
+
+        {% if r_day and r_night %}
+          {% set full.count = full.count + 1 %}
+          {% set full.sum_z = full.sum_z + t_z %}
+        {% endif %}
+
+        <tr class="cr-row-day grp-start {{ 'wkend' if is_wkend else '' }}">
+          <th class="sticky date {{ 'wkend' if is_wkend else '' }} grp-date-end" rowspan="3">
+            {{ d.strftime('%d.%m.%Y') }}
+            <div class="dow">{{ wnames[d.weekday()] }}</div>
+          </th>
+          <td>День</td>
+          <td>{{ fio(r_day and r_day.user) }}</td>
+          <td class="num">{{ r_day and n(d_z) or '' }}</td>
+          <td class="num">{{ r_day and n(d_game) or '' }}</td>
+          <td class="num">{{ r_day and n(d_bar) or '' }}</td>
+          <td class="num">{{ r_day and n(d_cash) or '' }}</td>
+          <td class="num">{{ r_day and n(d_ext) or '' }}</td>
+          <td class="num">{{ r_day and n(d_sbp) or '' }}</td>
+          <td class="num">{{ r_day and n(d_cls) or '' }}</td>
+          <td class="num">{{ r_day and n(d_acq) or '' }}</td>
+          <td class="num">
+            {% if r_day and tips.get(r_day.id) and current_user.role in ['superadmin','owner'] %}
+              <span class="cz-expense" title="{{ tips[r_day.id] }}" data-tip="{{ tips[r_day.id] }}">{{ n(d_fee) }}</span>
+            {% else %}{{ r_day and n(d_fee) or '' }}{% endif %}
+          </td>
+          <td class="num">{{ r_day and n(d_rc) or '' }}</td>
+          <td class="num">{{ r_day and n(d_rn) or '' }}</td>
+          <td class="{{ 'ok' if d_ok else 'bad' }}">{{ r_day and ('ДА' if d_ok else n(d_ext - (d_sbp + d_cls + d_acq))) or '' }}</td>
+          <td class="num">{{ r_day and n(d_cl) or '' }}</td>
+          <td class="num">{{ r_day and n(d_inc) or '' }}</td>
+          <td>
+            {% if r_day %}
+              <a class="btn btn-sm cz-btn" href="{{ url_for('cashier.view', report_id=r_day.id) }}">Открыть</a>
+            {% else %}
+              <a class="btn btn-sm cz-btn" href="{{ url_for('cashier.new', date=d.strftime('%Y-%m-%d'), shift='day') }}">Открыть</a>
+            {% endif %}
+          </td>
+        </tr>
+
+        <tr class="cr-row-night {{ 'wkend' if is_wkend else '' }}">
+          <td>Ночь</td>
+          <td>{{ fio(r_night and r_night.user) }}</td>
+          <td class="num">{{ r_night and n(n_z) or '' }}</td>
+          <td class="num">{{ r_night and n(n_game) or '' }}</td>
+          <td class="num">{{ r_night and n(n_bar) or '' }}</td>
+          <td class="num">{{ r_night and n(n_cash) or '' }}</td>
+          <td class="num">{{ r_night and n(n_ext) or '' }}</td>
+          <td class="num">{{ r_night and n(n_sbp) or '' }}</td>
+          <td class="num">{{ r_night and n(n_cls) or '' }}</td>
+          <td class="num">{{ r_night and n(n_acq) or '' }}</td>
+          <td class="num">
+            {% if r_night and tips.get(r_night.id) and current_user.role in ['superadmin','owner'] %}
+              <span class="cz-expense" title="{{ tips[r_night.id] }}" data-tip="{{ tips[r_night.id] }}">{{ n(n_fee) }}</span>
+            {% else %}{{ r_night and n(n_fee) or '' }}{% endif %}
+          </td>
+          <td class="num">{{ r_night and n(n_rc) or '' }}</td>
+          <td class="num">{{ r_night and n(n_rn) or '' }}</td>
+          <td class="{{ 'ok' if n_ok else 'bad' }}">{{ r_night and ('ДА' if n_ok else n(n_ext - (n_sbp + n_cls + n_acq))) or '' }}</td>
+          <td class="num">{{ r_night and n(n_cl) or '' }}</td>
+          <td class="num">{{ r_night and n(n_inc) or '' }}</td>
+          <td>
+            {% if r_night %}
+              <a class="btn btn-sm cz-btn" href="{{ url_for('cashier.view', report_id=r_night.id) }}">Открыть</a>
+            {% else %}
+              <a class="btn btn-sm cz-btn" href="{{ url_for('cashier.new', date=d.strftime('%Y-%m-%d'), shift='night') }}">Открыть</a>
+            {% endif %}
+          </td>
+        </tr>
+
+        <tr class="cr-row-total grp-end {{ 'wkend' if is_wkend else '' }}">
+          <td colspan="2"><b>Итого</b></td>
+          <td class="num">{{ n(t_z) }}</td>
+          <td class="num">{{ n(t_game) }}</td>
+          <td class="num">{{ n(t_bar) }}</td>
+          <td class="num">{{ n(d_cash + n_cash) }}</td>
+          <td class="num">{{ n(t_ext) }}</td>
+          <td class="num">{{ n(t_sbp) }}</td>
+          <td class="num">{{ n(t_cls) }}</td>
+          <td class="num">{{ n(t_acq) }}</td>
+          <td class="num">{{ n(t_fee) }}</td>
+          <td class="num">{{ n(t_rc) }}</td>
+          <td class="num">{{ n(t_rn) }}</td>
+          <td class="{{ 'ok' if t_ok else 'bad' }}">{{ 'ДА' if t_ok else n(t_ext - (t_sbp + t_cls + t_acq)) }}</td>
+          <td class="num">{{ n(t_cl) }}</td>
+          <td class="num">{{ n(t_inc) }}</td>
+          <td></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+
+      {% if current_user.role in ['superadmin','owner'] %}
+      {% set m_ok = (totals.ext - (totals.sbp + totals.cls + totals.acq))|abs < 0.01 %}
+      {% set avg_full = (full.sum_z / full.count) if full.count > 0 else None %}
+      <tfoot>
+        {# 1) теперь первая строка — ИТОГО ЗА МЕСЯЦ #}
+        <tr class="cr-row-total month-total">
+          <th class="sticky">ИТОГО ЗА МЕСЯЦ</th>
+          <th></th><th></th>
+          <td class="num">{{ n(totals.z) }}</td>
+          <td class="num">{{ n(totals.game) }}</td>
+          <td class="num">{{ n(totals.bar) }}</td>
+          <td class="num">{{ n(totals.cash) }}</td>
+          <td class="num">{{ n(totals.ext) }}</td>
+          <td class="num">{{ n(totals.sbp) }}</td>
+          <td class="num">{{ n(totals.cls) }}</td>
+          <td class="num">{{ n(totals.acq) }}</td>
+          <td class="num">{{ n(totals.fee) }}</td>
+          <td class="num">{{ n(totals.rc) }}</td>
+          <td class="num">{{ n(totals.rn) }}</td>
+          <td class="{{ 'ok' if m_ok else 'bad' }}">{{ 'ДА' if m_ok else n(totals.ext - (totals.sbp + totals.cls + totals.acq)) }}</td>
+          <td class="num">{{ n(totals.cl) }}</td>
+          <td class="num">{{ n(totals.inc) }}</td>
+          <td></td>
+        </tr>
+        {# 2) вторая строка — ПО ПОЛНЫМ СУТКАМ #}
+        <tr class="cr-row-total month-stats">
+          <th class="sticky">ПО ПОЛНЫМ СУТКАМ</th>
+          <td colspan="6"><b>Полных суток:</b> {{ full.count }}</td>
+          <td colspan="8" class="num"><b>Среднесуточная:</b> {{ avg_full is not none and n(avg_full) or '—' }}</td>
+          <td colspan="3"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<script>
+  document.querySelector('input[type="month"]')?.addEventListener('change', e => e.target.form?.submit());
+  document.addEventListener('click', function(ev){
+    const el = ev.target.closest('.cz-expense'); if(!el) return;
+    const t = el.getAttribute('data-tip') || el.getAttribute('title') || '';
+    if (t && navigator.clipboard) navigator.clipboard.writeText(t).catch(()=>{});
+  }, false);
+</script>
+{% endblock %}

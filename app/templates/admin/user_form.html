@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Администрирование · Пользователь{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/cashier.css') }}">
+{% endblock %}
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="cz-h1 m-0">{{ item and ('Пользователь #' ~ item.id) or 'Новый пользователь' }}</h1>
+    <a class="btn cz-btn" href="{{ url_for('admin.users') }}">Назад</a>
+  </div>
+
+  <form method="post">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">ФИО</label>
+        <input class="form-control cz-input" type="text" name="full_name"
+               placeholder="Фамилия Имя Отчество"
+               value="{{ item.full_name if item else '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Логин</label>
+        <input class="form-control cz-input" type="text" name="username"
+               value="{{ item.username if item else '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Email</label>
+        <input class="form-control cz-input" type="email" name="email"
+               value="{{ item.email if item else '' }}">
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Роль</label>
+        <select class="form-select cz-input" name="role">
+          {% set roles = ['superadmin','owner','club_admin','cashier','admin','user'] %}
+          {% for r in roles %}
+            <option value="{{ r }}" {% if item and item.role==r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Пароль</label>
+        <input class="form-control cz-input" name="password" type="password"
+               placeholder="Оставьте пустым, чтобы не менять">
+      </div>
+    </div>
+
+    <div class="mt-3 d-flex gap-2">
+      <button class="btn cz-btn" type="submit">Сохранить</button>
+      <a class="btn btn-secondary" href="{{ url_for('admin.users') }}">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
